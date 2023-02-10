@@ -2,3 +2,4 @@ python -m venv env (creating env)
 env\Scripts\activate (activate env)
 
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
+pip3 install matplotlib
