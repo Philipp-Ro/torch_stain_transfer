@@ -1,28 +1,13 @@
 import torch
-params = {
-    'batch_size':1,
-    'input_size':256,
-    'resize_scale':286,
-    'crop_size':256,
-    'fliplr':True,
-    #model params
-    'num_epochs':100,
-    'decay_epoch':100,
-    'ngf':32,   #number of generator filters
-    'ndf':64,   #number of discriminator filters
-    'num_resnet':6, #number of resnet blocks
-    'lrG':0.0002,    #learning rate for generator
-    'lrD':0.0002,    #learning rate for discriminator
-    'beta1':0.5 ,    #beta1 for Adam optimizer
-    'beta2':0.999 ,  #beta2 for Adam optimizer
-    'lambdaA':10 ,   #lambdaA for cycle loss
-    'lambdaB':10  ,  #lambdaB for cycle loss
-}
+from torch.autograd import Variable
+import torch.optim as optim
+import numpy as np
+import loader
+from torch.utils.data import Dataset , DataLoader
 
-
-class CycleNet(torch.nn.Module):
-    def __init__(self, generator_G, generator_F, discriminator_X, discriminator_Y, l_cycle, l_ssim, l_id):
-        super(CycleGan, self).__init__()
+class model(torch.nn.Module):
+    def __init__(self,params, generator_G, generator_F, discriminator_X, discriminator_Y, disc_X_optimizer, disc_Y_optimizer, gen_optimizer):
+        super(model, self).__init__()
         # initialse the generator G and F
         # gen_F transfers from doman Y -> X
         # gen_G transfers from doman X -> Y
@@ -36,92 +21,135 @@ class CycleNet(torch.nn.Module):
         self.gen_F = generator_F
         self.disc_X = discriminator_X
         self.disc_Y = discriminator_Y
-        self.lambda_cycle = l_cycle
-        self.lambda_id = l_id
-        self.lambda_ssim = l_ssim  
-
-        # weigths of models
-        self.gen_G.normal_weight_init(mean=0.0, std=0.02)
-        self.gen_F.normal_weight_init(mean=0.0, std=0.02)
-        self.disc_X.normal_weight_init(mean=0.0, std=0.02)
-        self.disc_Y.normal_weight_init(mean=0.0, std=0.02)
-
-    def train_model(self,params):
-        for epoch in range(params['num_epochs']):
-            disc_X_losses = []
-            disc_Y_losses = []
-            gen_G_losses = []
-            gen_F_losses = []
-            cycle_A_losses = []
-            cycle_B_losses = []
-
-            # -------------------------- train generator G --------------------------
-            # X --> Y
-            # HE --> IHC
-            fake_IHC = self.gen_G(real_HE)
-            disc_Y_fake_decision = self.disc_Y(fake_IHC)
-            gen_G_loss = MSE_Loss(disc_Y_fake_decision, Variable(torch.ones(disc_Y_fake_decision.size()).cuda()))
-
-            # -------------------------- train generator F -------------------------- 
-            # Y --> X
-            # HE --> IHC
-            fake_HE = self.gen_F(real_IHC)
-            disc_X_fake_decision = self.disc_X(fake_HE)
-            gen_F_loss = MSE_Loss(D_A_fake_decision, Variable(torch.ones(disc_X_real_decision.size()).cuda()))
+        self.disc_X_optimizer = disc_X_optimizer
+        self.disc_Y_optimizer = disc_Y_optimizer
+        self.gen_optimizer = gen_optimizer
+        self.params = params
 
 
-            # ------------------------- forward cycle loss --------------------------
-            recon_HE = self.gen_F(fake_IHC)
-            cycle_A_loss = L1_Loss(recon_HE, real_HE) * params['forward_cycle_löambda']
+    def fit(self):
+        Tensor = torch.cuda.FloatTensor
+        criterion_GAN = torch.nn.MSELoss().cuda()
+        criterion_cycle = torch.nn.L1Loss().cuda()
+        criterion_identity = torch.nn.L1Loss().cuda()
+
+        
+        for epoch in range(self.params['num_epochs']):
+
+            # the dataset is set up he coppes images out of the original image i the set size 
+            # each epoch he takes a new slice of the original image 
+            # recomended sizes [256, 256]  / [512,512]  /  [1024,1024]
+            train_data = loader.stain_transfer_dataset( epoch = epoch,
+                                                        num_epochs = self.params['num_epochs'],
+                                                        HE_img_dir = self.params['HE_img_dir'],
+                                                        IHC_img_dir = self.params['IHC_img_dir'],
+                                                        img_size= self.params['img_size'],
+                                           )
+
+            # get dataloader
+            train_data_loader = DataLoader(train_data, batch_size=1, shuffle=False) 
+
+            if(epoch + 1) > self.params['decay_epoch']:
+                self.disc_X_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_disc'] / (self.params['num_epochs'] - self.params['decay_epoch'])
+                self.disc_Y_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_disc'] / (self.params['num_epochs'] - self.params['decay_epoch'])
+                self.gen_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
+            
+            for i, (real_HE, real_IHC) in enumerate(train_data_loader):
+
+                # Adversarial ground truths
+                valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
+                fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
                 
+                # -----------------------------------------------------------------------------------------
+                # Train Generators
+                # ------------------------------------------------------------------------------------------
+                self.gen_G.train() # train mode
+                self.gen_G.train() # train mode
                 
-            # ---------------------------backward cycle loss-------------------------
-            recon_IHC = self.gen_G(fake_HE)
-            cycle_B_loss = L1_Loss(recon_IHC, real_IHC) * params['backward_cycle_lambda']
+                self.gen_optimizer.zero_grad() # Integrated optimizer(G_AB, G_BA)
                 
-            # ------------------------- Back propagation genarator ------------------
-            gen_total_loss = (gen_G_loss + gen_F_loss + cycle_A_loss + cycle_B_loss) * params['generator_lambda']
-            gen_optimizer.zero_grad()
-            gen_loss.backward()
-            gen_optimizer.step()
+                # Identity Loss
+                loss_id_HE = criterion_identity(self.gen_F(real_IHC), real_IHC) # If you put A into a generator that creates A with B,
+                loss_id_IHC = criterion_identity(self.gen_G(real_HE), real_HE) # then of course A must come out as it is.
+                                                                    # Taking this into consideration, add an identity loss that simply compares 'A and A' (or 'B and B').
+                loss_identity = (loss_id_HE + loss_id_IHC)/2
+                
+                # GAN Loss
+                fake_IHC = self.gen_G(real_HE) # fake_B is fake-photo that generated by real monet-drawing
+                loss_gen_G = criterion_GAN(self.disc_Y(fake_IHC), valid) # tricking the 'fake-B' into 'real-B'
+                fake_HE = self.gen_G(real_IHC)
+                loss_gen_F = criterion_GAN(self.disc_X(fake_HE), valid) # tricking the 'fake-A' into 'real-A'
+                
+                loss_GAN = (loss_gen_G +  loss_gen_F)/2
+                
+                # Cycle Loss
+                recov_A = self.gen_F(fake_IHC) # recov_A is fake-monet-drawing that generated by fake-photo
+                loss_cycle_A = criterion_cycle(recov_A, real_HE) # Reduces the difference between the restored image and the real image
+                recov_B = self.gen_G(fake_HE)
+                loss_cycle_B = criterion_cycle(recov_B, real_IHC)
+                
+                loss_cycle = (loss_cycle_A + loss_cycle_B)/2
+                
+                # ------> Total Loss
+                loss_G = loss_GAN + (self.params['cycle_lambda']*loss_cycle) + (self.params['identity_lambda']*loss_identity) # multiply suggested weight(default cycle loss weight : 10, default identity loss weight : 5)
+                
+                loss_G.backward()
+                self.gen_optimizer.step()
+                
+                # ---------------------------------------------------------------------------------
+                # Train Discriminator A
+                # ---------------------------------------------------------------------------------
+                self.disc_X_optimizer.zero_grad()
+            
+                loss_real = criterion_GAN(self.disc_X(real_HE), valid) # train to discriminate real images as real
+                loss_fake = criterion_GAN(self.disc_X(fake_HE.detach()), fake) # train to discriminate fake images as fake
+                
+                loss_disc_X = (loss_real + loss_fake)/2
+                
+                loss_disc_X .backward()
+                self.disc_X_optimizer.step()
 
-            # -------------------------- train discriminator D_A --------------------------
-            disc_X_real_decision = self.disc_X(real_HE)
-            # calculation loss of fake disc x  and an 
-            disc_X_real_loss = MSE_Loss(disc_X_real_decision, Variable(torch.ones(disc_X_real_decision.size()).cuda()))
+                # ---------------------------------------------------------------------------------------
+                # Train Discriminator B
+                # ----------------------------------------------------------------------------------------
+                self.disc_Y_optimizer.zero_grad()
             
+                loss_real = criterion_GAN(self.disc_Y(real_IHC), valid) # train to discriminate real images as real
+                loss_fake = criterion_GAN(self.disc_Y(fake_IHC.detach()), fake) # train to discriminate fake images as fake
+                
+                loss_disc_Y = (loss_real + loss_fake)/2
+                
+                loss_disc_Y .backward()
+                self.disc_Y_optimizer.step()
+                
+                # ------> Total Loss
+                loss_D = (loss_disc_X + loss_disc_Y )/2
             
-            
-            disc_X_fake_decision = self.disc_X(fake_HE)
-            disc_X_fake_loss = MSE_Loss(disc_X_fake_decision, Variable(torch.zeros(disc_X_fake_decision.size()).cuda()))
-            
-            # Back propagation
-            disc_X_loss = (disc_X_real_loss + disc_X_fake_loss) * params['disc_lambda']
-            disc_X_optimizer.zero_grad()
-            disc_X_loss.backward()
-            disc_X_optimizer.step()
-            
-            # -------------------------- train discriminator D_B --------------------------
-            disc_Y_real_decision = self.disc_Y(real_IHC)
-            disc_Y_real_loss = MSE_Loss(disc_Y_real_decision, Variable(torch.ones(disc_Y_fake_decision.size()).cuda()))
-            
-            
-            
-            disc_Y_fake_decision = self.disc_Y(fake_IHC)
-            disc_Y_fake_loss = MSE_Loss(disc_Y_fake_decision, Variable(torch.zeros(disc_Y_fake_decision.size()).cuda()))
-            
-            # Back propagation
-            disc_Y_loss = (disc_Y_real_loss + disc_Y_fake_loss) * params['disc_lambda']
-            disc_Y_optimizer.zero_grad()
-            disc_Y_loss.backward()
-            disc_Y_optimizer.step()
-            
-            # ------------------------ Print -----------------------------
-            # loss values
-            disc_X_losses.append(disc_X_loss.item())
-            disc_Y_losses.append(disc_Y_loss.item())
-            gen_G_losses.append(gen_G_loss.item())
-            gen_F_losses.append(gen_F_loss.item())
-            cycle_A_losses.append(cycle_A_loss.item())
-            cycle_B_losses.append(cycle_B_loss.item())
+                # -----------------------------------------------------------------------------------------
+                # Show Progress
+                # --------------------------------------------------------------------------------------------
+                if (i+1) % 50 == 0:
+                    
+                    print('[Epoch %d/%d] [Batch %d/%d] [D loss : %f] [G loss : %f - (adv : %f, cycle : %f, identity : %f)]'
+                            %(epoch+1,self.params['num_epochs'],       # [Epoch -]
+                            i+1,len(train_data_loader),   # [Batch -]
+                            loss_D.item(),       # [D loss -]
+                            loss_G.item(),       # [G loss -]
+                            loss_GAN.item(),     # [adv -]
+                            loss_cycle.item(),   # [cycle -]
+                            loss_identity.item(),# [identity -]
+                            ))
 
+        return self.gen_G, self.gen_F, self.disc_X, self.disc_Y
+
+
+
+def weights_init_normal(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        torch.nn.init.normal_(m.weight.data, 0.0, 0.02) # reset Conv2d's weight(tensor) with Gaussian Distribution
+        if hasattr(m, 'bias') and m.bias is not None:
+            torch.nn.init.constant_(m.bias.data, 0.0) # reset Conv2d's bias(tensor) with Constant(0)
+        elif classname.find('BatchNorm2d') != -1:
+            torch.nn.init.normal_(m.weight.data, 1.0, 0.02) # reset BatchNorm2d's weight(tensor) with Gaussian Distribution
+            torch.nn.init.constant_(m.bias.data, 0.0) # reset BatchNorm2d's bias(tensor) with Constant(0)

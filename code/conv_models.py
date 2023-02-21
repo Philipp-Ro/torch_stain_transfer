@@ -1,137 +1,105 @@
-import torch
-class ConvBlock(torch.nn.Module):
-    def __init__(self,input_size,output_size,kernel_size=3,stride=2,padding=1,activation='relu',batch_norm=True):
-        super(ConvBlock,self).__init__()
-        self.conv = torch.nn.Conv2d(input_size,output_size,kernel_size,stride,padding)
-        self.batch_norm = batch_norm
-        self.bn = torch.nn.InstanceNorm2d(output_size)
-        self.activation = activation
-        self.relu = torch.nn.ReLU(True)
-        self.lrelu = torch.nn.LeakyReLU(0.2,True)
-        self.tanh = torch.nn.Tanh()
-    def forward(self,x):
-        if self.batch_norm:
-            out = self.bn(self.conv(x))
-        else:
-            out = self.conv(x)
-        
-        if self.activation == 'relu':
-            return self.relu(out)
-        elif self.activation == 'lrelu':
-            return self.lrelu(out)
-        elif self.activation == 'tanh':
-            return self.tanh(out)
-        elif self.activation == 'no_act':
-            return out
-
-class DeconvBlock(torch.nn.Module):
-    def __init__(self,input_size,output_size,kernel_size=3,stride=2,padding=1,output_padding=1,activation='relu',batch_norm=True):
-        super(DeconvBlock,self).__init__()
-        self.deconv = torch.nn.ConvTranspose2d(input_size,output_size,kernel_size,stride,padding,output_padding)
-        self.batch_norm = batch_norm
-        self.bn = torch.nn.InstanceNorm2d(output_size)
-        self.activation = activation
-        self.relu = torch.nn.ReLU(True)
-    def forward(self,x):
-        if self.batch_norm:
-            out = self.bn(self.deconv(x))
-        else:
-            out = self.deconv(x)
-        if self.activation == 'relu':
-            return self.relu(out)
-        elif self.activation == 'lrelu':
-            return self.lrelu(out)
-        elif self.activation == 'tanh':
-            return self.tanh(out)
-        elif self.activation == 'no_act':
-            return out
-
-class ResnetBlock(torch.nn.Module):
-    def __init__(self,num_filter,kernel_size=3,stride=1,padding=0):
-        super(ResnetBlock,self).__init__()
-        conv1 = torch.nn.Conv2d(num_filter,num_filter,kernel_size,stride,padding)
-        conv2 = torch.nn.Conv2d(num_filter,num_filter,kernel_size,stride,padding)
-        bn = torch.nn.InstanceNorm2d(num_filter)
-        relu = torch.nn.ReLU(True)
-        pad = torch.nn.ReflectionPad2d(1)
-        
-        self.resnet_block = torch.nn.Sequential(
-            pad,
-            conv1,
-            bn,
-            relu,
-            pad,
-            conv2,
-            bn
-            )
-    def forward(self,x):
-        out = self.resnet_block(x)
-        return out
-        
-class Generator(torch.nn.Module):
-    def __init__(self,input_dim,num_filter,output_dim,num_resnet):
-        super(Generator,self).__init__()
-        
-        #Reflection padding
-        self.pad = torch.nn.ReflectionPad2d(3)
-        #Encoder
-        self.conv1 = ConvBlock(input_dim,num_filter,kernel_size=7,stride=1,padding=0)
-        self.conv2 = ConvBlock(num_filter,num_filter*2)
-        self.conv3 = ConvBlock(num_filter*2,num_filter*4)
-        #Resnet blocks
-        self.resnet_blocks = []
-        for i in range(num_resnet):
-            self.resnet_blocks.append(ResnetBlock(num_filter*4))
-        self.resnet_blocks = torch.nn.Sequential(*self.resnet_blocks)
-        #Decoder
-        self.deconv1 = DeconvBlock(num_filter*4,num_filter*2)
-        self.deconv2 = DeconvBlock(num_filter*2,num_filter)
-        self.deconv3 = ConvBlock(num_filter,output_dim,kernel_size=7,stride=1,padding=0,activation='tanh',batch_norm=False)
+import torch.nn as nn
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels):
+        super(ResidualBlock, self).__init__()
+        self.block = nn.Sequential(
+            nn.ReflectionPad2d(1), # padding, keep the image size constant after next conv2d
+            nn.Conv2d(in_channels, in_channels, 3),
+            nn.InstanceNorm2d(in_channels),
+            nn.ReLU(inplace=True),
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(in_channels, in_channels, 3),
+            nn.InstanceNorm2d(in_channels)
+        )
     
-    def forward(self,x):
-        #Encoder
-        enc1 = self.conv1(self.pad(x))
-        enc2 = self.conv2(enc1)
-        enc3 = self.conv3(enc2)
-        #Resnet blocks
-        res = self.resnet_blocks(enc3)
-        #Decoder
-        dec1 = self.deconv1(res)
-        dec2 = self.deconv2(dec1)
-        out = self.deconv3(self.pad(dec2))
-        return out
-    
-    def normal_weight_init(self,mean=0.0,std=0.02):
-        for m in self.children():
-            if isinstance(m,ConvBlock):
-                torch.nn.init.normal_(m.conv.weight,mean,std)
-            if isinstance(m,DeconvBlock):
-                torch.nn.init.normal_(m.deconv.weight,mean,std)
-            if isinstance(m,ResnetBlock):
-                torch.nn.init.normal_(m.conv.weight,mean,std)
-                torch.nn.init.constant_(m.conv.bias,0)
-                           
-class Discriminator(torch.nn.Module):
-    def __init__(self,input_dim,num_filter,output_dim):
-        super(Discriminator,self).__init__()
-        conv1 = ConvBlock(input_dim,num_filter,kernel_size=4,stride=2,padding=1,activation='lrelu',batch_norm=False)
-        conv2 = ConvBlock(num_filter,num_filter*2,kernel_size=4,stride=2,padding=1,activation='lrelu')
-        conv3 = ConvBlock(num_filter*2,num_filter*4,kernel_size=4,stride=2,padding=1,activation='lrelu')
-        conv4 = ConvBlock(num_filter*4,num_filter*8,kernel_size=4,stride=1,padding=1,activation='lrelu')
-        conv5 = ConvBlock(num_filter*8,output_dim,kernel_size=4,stride=1,padding=1,activation='no_act',batch_norm=False)
-        self.conv_blocks = torch.nn.Sequential(
-            conv1,
-            conv2,
-            conv3,
-            conv4,
-            conv5
-            )
-    def forward(self,x):
-        out = self.conv_blocks(x)
-        return out
-        
-    def normal_weight_init(self,mean=0.0,std=0.02):
-        for m in self.children():
-            if isinstance(m,ConvBlock):
-                torch.nn.init.normal_(m.conv.weight.data,mean,std)
+    def forward(self, x):
+        return x + self.block(x)
 
+class GeneratorResNet(nn.Module):
+    def __init__(self, in_channels, num_residual_blocks=9):
+        super(GeneratorResNet, self).__init__()
+        
+        # Inital Convolution:  3 * [img_height] * [img_width] ----> 64 * [img_height] * [img_width]
+        out_channels=64
+        self.conv = nn.Sequential(
+            nn.ReflectionPad2d(in_channels), # padding, keep the image size constant after next conv2d
+            nn.Conv2d(in_channels, out_channels, 2*in_channels+1),
+            nn.InstanceNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )
+        
+        channels = out_channels
+        
+        # Downsampling   64*256*256 -> 128*128*128 -> 256*64*64
+        self.down = []
+        for _ in range(2):
+            out_channels = channels * 2
+            self.down += [
+                nn.Conv2d(channels, out_channels, 3, stride=2, padding=1),
+                nn.InstanceNorm2d(out_channels),
+                nn.ReLU(inplace=True),
+            ]
+            channels = out_channels
+        self.down = nn.Sequential(*self.down)
+        
+        # Transformation (ResNet)  256*64*64
+        self.trans = [ResidualBlock(channels) for _ in range(num_residual_blocks)]
+        self.trans = nn.Sequential(*self.trans)
+        
+        # Upsampling  256*64*64 -> 128*128*128 -> 64*256*256
+        self.up = []
+        for _ in range(2):
+            out_channels = channels // 2
+            self.up += [
+                nn.Upsample(scale_factor=2), # bilinear interpolation
+                nn.Conv2d(channels, out_channels, 3, stride=1, padding=1),
+                nn.InstanceNorm2d(out_channels),
+                nn.ReLU(inplace=True),
+            ]
+            channels = out_channels
+        self.up = nn.Sequential(*self.up)
+        
+        # Out layer  64*256*256 -> 3*256*256
+        self.out = nn.Sequential(
+            nn.ReflectionPad2d(in_channels),
+            nn.Conv2d(channels, in_channels, 2*in_channels+1),
+            nn.Tanh()
+        )
+    
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.down(x)
+        x = self.trans(x)
+        x = self.up(x)
+        x = self.out(x)
+        return x
+
+class Discriminator(nn.Module):
+    def __init__(self, in_channels):
+        super(Discriminator, self).__init__()
+        
+        self.model = nn.Sequential(
+            # why normalize=False?
+            *self.block(in_channels, 64, normalize=False), # 3*256*256 -> 64*128*128 
+            *self.block(64, 128),  # 64*128*128 -> 128*64*64
+            *self.block(128, 256), # 128*64*64 -> 256*32*32
+            *self.block(256, 512), # 256*32*32 -> 512*16*16
+            
+            # Why padding first then convolution?
+            nn.ZeroPad2d((1,0,1,0)), # padding left and top   512*16*16 -> 512*17*17
+            nn.Conv2d(512, 1, 4, padding=1) # 512*17*17 -> 1*16*16
+        )
+        
+        self.scale_factor = 16
+    
+    @staticmethod
+    def block(in_channels, out_channels, normalize=True):
+        layers = [nn.Conv2d(in_channels, out_channels, 4, stride=2, padding=1)]
+        if normalize:
+            layers.append(nn.InstanceNorm2d(out_channels))
+        layers.append(nn.LeakyReLU(0.2, inplace=True))
+        
+        return layers
+        
+    def forward(self, x):
+        return self.model(x)

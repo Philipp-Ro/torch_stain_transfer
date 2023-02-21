@@ -1,0 +1,23 @@
+# set paths for imge folder ( 2 folders corresponding images have to have the same name)
+HE_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/HE_imgs/HE'
+IHC_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/IHC_imgs/IHC'
+
+
+img_size : [100,100]
+num_epochs : 10
+decay_epoch : 10
+batch_size : 1
+learn_rate_disc : 0.0002
+learn_rate_gen : 0.0002
+
+beta1 : 0.5    #beta1 for Adam optimizer
+beta2 : 0.999  #beta2 for Adam optimizer
+
+cycle_lambda : 10
+identity_lambda : 5
+generator_lambda : 1
+disc_lambda : 1
+
+num_gen_filters : 32   #number of generator filters
+num_disc_filters : 64
+num_resnet : 6 #number of resnet blocks
