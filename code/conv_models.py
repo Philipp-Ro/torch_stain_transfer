@@ -80,10 +80,10 @@ class Discriminator(nn.Module):
         
         self.model = nn.Sequential(
             # why normalize=False?
-            *self.block(in_channels, 64, normalize=False), # 3*256*256 -> 64*128*128 
-            *self.block(64, 128),  # 64*128*128 -> 128*64*64
-            *self.block(128, 256), # 128*64*64 -> 256*32*32
-            *self.block(256, 512), # 256*32*32 -> 512*16*16
+            *self.block(in_channels, 64, normalize=False),
+            *self.block(64, 128),  
+            *self.block(128, 256), 
+            *self.block(256, 512), 
             
             # Why padding first then convolution?
             nn.ZeroPad2d((1,0,1,0)), # padding left and top   512*16*16 -> 512*17*17

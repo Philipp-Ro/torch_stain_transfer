@@ -1,12 +1,23 @@
 # set paths for imge folder ( 2 folders corresponding images have to have the same name)
-HE_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/HE_imgs/HE'
-IHC_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/IHC_imgs/IHC'
+#HE_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/HE_imgs/HE'
+#IHC_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/IHC_imgs/IHC'
 
+train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
+test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
 
-img_size : [100,100]
-num_epochs : 10
-decay_epoch : 10
+output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
+output_folder : '/Test_01'
+
+#set model architecture
+conv_net : 1
+trans_net: 0
+
+img_size : [64,64]
+num_epochs : 1
+decay_epoch : 1
 batch_size : 1
+
+# cycle GAN setting 
 learn_rate_disc : 0.0002
 learn_rate_gen : 0.0002
 
@@ -18,6 +29,20 @@ identity_lambda : 5
 generator_lambda : 1
 disc_lambda : 1
 
+
+
+# Conv settings
 num_gen_filters : 32   #number of generator filters
 num_disc_filters : 64
 num_resnet : 6 #number of resnet blocks
+
+
+
+# trans settings 
+nhead : 4
+patch_size : 16
+num_layers : 4
+dropout_embedding : 0.1    
+in_channels : 3
+
+

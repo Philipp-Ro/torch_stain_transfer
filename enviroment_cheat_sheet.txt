@@ -8,6 +8,12 @@ pip install  ipykernel
 
 pip install PyYAML
 
-pip3 install torchgan
-
 pip install torch-summary
+
+(pip install einops)
+
+!pip install -q torchinfo
+
+(pip install pytorch-ignite)
+
+pip install torchmetrics
