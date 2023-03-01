@@ -7,25 +7,35 @@ import os , itertools
 import CycleNet
 import transformer_models
 import loader 
-
+from torchvision import transforms
 from torch.utils.data import DataLoader
 from torchmetrics import StructuralSimilarityIndexMeasure
 from torchmetrics import PeakSignalNoiseRatio
 
 
-
+# -----------------------------------------------------------------------------------------
+# load config and intialize Generators and Discriminators
+# ------------------------------------------------------------------------------------------
 
 params = utils.get_config_from_yaml('C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/code/config.yaml')
 
 
 if params['conv_net'] == 1:
     
-    gen_G = conv_models.GeneratorResNet(3, num_residual_blocks=9)
-    gen_F = conv_models.GeneratorResNet(3, num_residual_blocks=9)
-    gen_test = conv_models.GeneratorResNet(3, num_residual_blocks=9)
+    gen_G = conv_models.GeneratorResNet(in_channels= 3,
+                                        num_residual_blocks = params['num_resnet']
+                                        )
+    
+    gen_F = conv_models.GeneratorResNet(in_channels= 3, 
+                                        num_residual_blocks = params['num_resnet']
+                                        )
+    
+    gen_test = conv_models.GeneratorResNet(in_channels= 3,
+                                           num_residual_blocks = params['num_resnet']
+                                           )
 
-    disc_X = conv_models.Discriminator(3)
-    disc_Y = conv_models.Discriminator(3)
+    disc_X = conv_models.Discriminator(in_channels= 3)
+    disc_Y = conv_models.Discriminator(in_channels= 3)
 
     gen_G = gen_G.cuda()
     gen_F = gen_F.cuda()
@@ -79,30 +89,33 @@ if params['trans_net']== 1:
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()  
 
-
-######################## initialize optimizier ########################################
+# -----------------------------------------------------------------------------------------
+# intitialise optimisers and Cyclenet
+# ------------------------------------------------------------------------------------------
 gen_optimizer = torch.optim.Adam(itertools.chain(gen_G.parameters(), gen_F.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
 disc_X_optimizer = torch.optim.Adam(disc_X.parameters(), lr=params['learn_rate_disc'], betas=(params['beta1'], params['beta2']))
 disc_Y_optimizer = torch.optim.Adam(disc_Y.parameters(), lr=params['learn_rate_disc'], betas=(params['beta1'], params['beta2']))
 
-######################## initialize CycleGan ##########################################
 model = CycleNet.model(params,gen_G, gen_F,disc_X, disc_Y, disc_X_optimizer, disc_Y_optimizer, gen_optimizer)
-
-######################## train model ##################################################
+# train network
 gen_G, gen_F, disc_X, disc_Y = model.fit()
 
 
-######################## save model and config ###########################################
+# -----------------------------------------------------------------------------------------
+# set up dirs for testing and loading Generator
+# ------------------------------------------------------------------------------------------
 output_folder_path = "{}{}".format(params['output_path'],params['output_folder'])
 gen_G_path = "{}{}".format(output_folder_path,'/Generator_G_weights.pth')
 config_path =  "{}{}".format(output_folder_path,'/config.yaml')
+test_path = params['test_dir']
+HE_img_dir = "{}{}".format(test_path,'/HE_imgs/HE')
+IHC_img_dir = "{}{}".format(test_path,'/IHC_imgs/IHC')
+result_dir = "{}{}".format(output_folder_path,'result.txt')
 
 utils.save_config_in_dir(config_path, params)
 torch.save(gen_G.state_dict(), gen_G_path)
 
 
-
-####################################### testing ###########################################################
 model = gen_test
 model.load_state_dict(torch.load(gen_G_path))
 model.eval()
@@ -115,10 +128,10 @@ result['ssim_std'] = []
 result['psnr_mean'] = []
 result['psnr_std'] = []
 
-# set up test data dirs 
-test_path = params['test_dir']
-HE_img_dir = "{}{}".format(test_path,'/HE_imgs/HE')
-IHC_img_dir = "{}{}".format(test_path,'/IHC_imgs/IHC')
+
+# -----------------------------------------------------------------------------------------
+# Testing loop
+# ------------------------------------------------------------------------------------------
 
 for epoch in range(params['num_epochs']):
     
@@ -142,10 +155,11 @@ for epoch in range(params['num_epochs']):
 
     for i, (real_HE, real_IHC) in enumerate(test_data_loader):
         fake_IHC = model(real_HE)
+        fake_IHC = utils.norm_tensor_to_01(fake_IHC)
         
-        ssim_scores.append(ssim(fake_IHC, real_IHC))
-        psnr_scores.append(psnr(fake_IHC, real_IHC))
-        torch.cuda.empty_cache()
+        ssim_scores.append(ssim(fake_IHC, real_IHC).item())
+        psnr_scores.append(psnr(fake_IHC, real_IHC).item())
+        
 
     result['ssim_mean'].append(np.mean(ssim_scores))
     result['ssim_std'].append(np.std(ssim_scores))
@@ -154,7 +168,7 @@ for epoch in range(params['num_epochs']):
     result['psnr_std'].append(np.std(psnr_scores))
 
 # open file for writing
-f = open(output_folder_path,"w")
+f = open(result_dir,"w")
 
 # write file
 f.write( str(result) )

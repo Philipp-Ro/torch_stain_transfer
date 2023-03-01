@@ -24,11 +24,13 @@ learn_rate_gen : 0.0002
 beta1 : 0.5    #beta1 for Adam optimizer
 beta2 : 0.999  #beta2 for Adam optimizer
 
+# loss hyper parameter
 cycle_lambda : 10
 identity_lambda : 5
 generator_lambda : 1
 disc_lambda : 1
-
+ssim_lambda : 3
+psnr_lambda : 0.05
 
 
 # Conv settings
