@@ -16,6 +16,7 @@ img_size : [64,64]
 num_epochs : 1
 decay_epoch : 1
 batch_size : 1
+norm : True
 
 # cycle GAN setting 
 learn_rate_disc : 0.0002

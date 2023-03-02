@@ -110,7 +110,7 @@ config_path =  "{}{}".format(output_folder_path,'/config.yaml')
 test_path = params['test_dir']
 HE_img_dir = "{}{}".format(test_path,'/HE_imgs/HE')
 IHC_img_dir = "{}{}".format(test_path,'/IHC_imgs/IHC')
-result_dir = "{}{}".format(output_folder_path,'result.txt')
+result_dir = "{}{}".format(output_folder_path,'/result.txt')
 
 utils.save_config_in_dir(config_path, params)
 torch.save(gen_G.state_dict(), gen_G_path)

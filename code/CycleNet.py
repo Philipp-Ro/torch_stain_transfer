@@ -18,8 +18,7 @@ class model(torch.nn.Module):
         # initialize the discriminator X and Y
         # disc_X distinguishes between real and fake in the X domain 
         # disc_Y distinguishes between real and fake in the Y domain 
-        #
-        #
+
         self.gen_G = generator_G
         self.gen_F = generator_F
         self.disc_X = discriminator_X
@@ -48,6 +47,7 @@ class model(torch.nn.Module):
             IHC_img_dir = "{}{}".format(train_path,'/IHC_imgs/IHC')
 
             train_data = loader.stain_transfer_dataset( epoch = epoch,
+                                                        norm = self.params['norm'],
                                                         num_epochs = self.params['num_epochs'],
                                                         HE_img_dir = HE_img_dir,
                                                         IHC_img_dir = IHC_img_dir,
@@ -63,7 +63,7 @@ class model(torch.nn.Module):
                 self.gen_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
             
             for i, (real_HE, real_IHC) in enumerate(train_data_loader):
-
+                
                 # Adversarial ground truths
                 valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
                 fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
@@ -136,7 +136,7 @@ class model(torch.nn.Module):
                 
                 loss_disc_X = (loss_real + loss_fake)/2
                 # apply hyperparameter
-                loss_disc_Y = self.params['disc_lambda']*loss_disc_Y 
+                loss_disc_X = self.params['disc_lambda']*loss_disc_X 
                 
                 loss_disc_X .backward()
                 self.disc_X_optimizer.step()
@@ -166,15 +166,15 @@ class model(torch.nn.Module):
                 if (i+1) % 50 == 0:
                     
                     print('[Epoch %d/%d] [Batch %d/%d] [D loss : %f] [total G loss : %f - (gan : %f, cycle : %f, identity : %f ,ssim : %f ,psnr : %f)]'
-                            %(epoch+1,self.params['num_epochs'],       # [Epoch -]
-                            i+1,len(train_data_loader),   # [Batch -]
-                            loss_D.item(),       # [D loss -]
-                            loss_G.item(),       # [total G loss -]
-                            loss_GAN.item(),     # [gan -]
-                            loss_cycle.item(),   # [cycle -]
-                            loss_identity.item(),# [identity -]
-                            loss_ssim.item(),# [ssim -]
-                            loss_psnr.item(),# [psnr -]
+                            %(epoch+1,self.params['num_epochs'],        # [Epoch -]
+                            i+1,len(train_data_loader),                 # [Batch -]
+                            loss_D.item(),                              # [D loss -]
+                            loss_G.item(),                              # [total G loss -]
+                            loss_GAN.item(),                            # [gan -]
+                            loss_cycle.item(),                          # [cycle -]
+                            loss_identity.item(),                       # [identity -]
+                            loss_ssim.item(),                           # [ssim -]
+                            loss_psnr.item(),                           # [psnr -]
                             ))
 
         return self.gen_G, self.gen_F, self.disc_X, self.disc_Y
