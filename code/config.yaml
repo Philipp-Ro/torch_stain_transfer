@@ -1,51 +1,67 @@
 # set paths for imge folder ( 2 folders corresponding images have to have the same name)
-#HE_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/HE_imgs/HE'
-#IHC_img_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train/IHC_imgs/IHC'
-
+#---------------------------------------------------------------------------------------
+# Training set_up
+#---------------------------------------------------------------------------------------
+# input
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
-test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
-
-output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : '/Test_01'
-
-#set model architecture
-conv_net : 1
-trans_net: 0
-
 img_size : [64,64]
 num_epochs : 1
 decay_epoch : 1
 batch_size : 1
 norm : True
+grayscale : False
 
-# cycle GAN setting 
+# output save dirs
+output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
+output_folder : 'Test_01'
+model_name : 'Generator_G_weights.pth'
+
+#-----------------------------------------------------------------------------------------
+# Model selection
+#-----------------------------------------------------------------------------------------
+#set Generator architecture
+conv_net : 1
+trans_net: 0
+
+# set CycleGAN LR and optimisers
 learn_rate_disc : 0.0002
 learn_rate_gen : 0.0002
 
 beta1 : 0.5    #beta1 for Adam optimizer
 beta2 : 0.999  #beta2 for Adam optimizer
 
-# loss hyper parameter
-cycle_lambda : 10
-identity_lambda : 5
+# set CycleGAN loss hyperparameter
+cycle_lambda : 4
+identity_lambda : 2
 generator_lambda : 1
 disc_lambda : 1
 ssim_lambda : 3
 psnr_lambda : 0.05
 
-
-# Conv settings
+# set conv architecture
 num_gen_filters : 32   #number of generator filters
 num_disc_filters : 64
 num_resnet : 6 #number of resnet blocks
 
-
-
-# trans settings 
+# set transformer architecture
 nhead : 4
 patch_size : 16
 num_layers : 4
 dropout_embedding : 0.1    
-in_channels : 3
+
+
+#-----------------------------------------------------------------------------------------
+# Testing
+#-----------------------------------------------------------------------------------------
+test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
+plots_per_epoch : 2
+
+
+
+
+
+
+
+
 
 

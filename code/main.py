@@ -1,16 +1,11 @@
 import torch
-import matplotlib.pyplot as plt
-import numpy as np
 import utils
 import conv_models
 import os , itertools
 import CycleNet
 import transformer_models
-import loader 
-from torchvision import transforms
-from torch.utils.data import DataLoader
-from torchmetrics import StructuralSimilarityIndexMeasure
-from torchmetrics import PeakSignalNoiseRatio
+import eval
+
 
 
 # -----------------------------------------------------------------------------------------
@@ -19,6 +14,11 @@ from torchmetrics import PeakSignalNoiseRatio
 
 params = utils.get_config_from_yaml('C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/code/config.yaml')
 
+# set in_channels of networks depending on grayscale 
+if params['grayscale'] == True:
+        in_channels = 1
+else:
+     in_channels = 3
 
 if params['conv_net'] == 1:
     
@@ -34,8 +34,8 @@ if params['conv_net'] == 1:
                                            num_residual_blocks = params['num_resnet']
                                            )
 
-    disc_X = conv_models.Discriminator(in_channels= 3)
-    disc_Y = conv_models.Discriminator(in_channels= 3)
+    disc_X = conv_models.Discriminator(in_channels= in_channels)
+    disc_Y = conv_models.Discriminator(in_channels= in_channels)
 
     gen_G = gen_G.cuda()
     gen_F = gen_F.cuda()
@@ -55,7 +55,7 @@ if params['trans_net']== 1:
     gen_G = transformer_models.Generator(   img_size= params['img_size'][0],
                                             embedding_dim=0,
                                             patch_size=params['patch_size'],
-                                            in_channels=params['in_channels'],
+                                            in_channels=in_channels,
                                             dropout_embedding=params['dropout_embedding'],
                                             nhead= params['nhead'],
                                             num_layers=params['num_layers']
@@ -64,7 +64,7 @@ if params['trans_net']== 1:
     gen_F = transformer_models.Generator(   img_size= params['img_size'][0],
                                             embedding_dim=0,
                                             patch_size=params['patch_size'],
-                                            in_channels=params['in_channels'],
+                                            in_channels=in_channels,
                                             dropout_embedding=params['dropout_embedding'],
                                             nhead= params['nhead'],
                                             num_layers=params['num_layers']
@@ -102,76 +102,19 @@ gen_G, gen_F, disc_X, disc_Y = model.fit()
 
 
 # -----------------------------------------------------------------------------------------
-# set up dirs for testing and loading Generator
+# save the trained model 
 # ------------------------------------------------------------------------------------------
-output_folder_path = "{}{}".format(params['output_path'],params['output_folder'])
-gen_G_path = "{}{}".format(output_folder_path,'/Generator_G_weights.pth')
-config_path =  "{}{}".format(output_folder_path,'/config.yaml')
-test_path = params['test_dir']
-HE_img_dir = "{}{}".format(test_path,'/HE_imgs/HE')
-IHC_img_dir = "{}{}".format(test_path,'/IHC_imgs/IHC')
-result_dir = "{}{}".format(output_folder_path,'/result.txt')
+output_folder_path = os.path.join(params['output_path'],params['output_folder'])
+model_path = os.path.join(output_folder_path,params['model_name'])
+config_path =  os.path.join(output_folder_path,'config.yaml')
 
 utils.save_config_in_dir(config_path, params)
-torch.save(gen_G.state_dict(), gen_G_path)
-
-
-model = gen_test
-model.load_state_dict(torch.load(gen_G_path))
-model.eval()
-
-# set up result vector 
-result = {}
-result['epoch'] = []
-result['ssim_mean'] = []
-result['ssim_std'] = []
-result['psnr_mean'] = []
-result['psnr_std'] = []
-
+torch.save(gen_G.state_dict(), model_path)
 
 # -----------------------------------------------------------------------------------------
-# Testing loop
+# Testing 
 # ------------------------------------------------------------------------------------------
+model = gen_test
 
-for epoch in range(params['num_epochs']):
-    
-    result['epoch'].append(epoch)
-    test_data = loader.stain_transfer_dataset(  epoch = epoch,
-                                                num_epochs = params['num_epochs'],
-                                                HE_img_dir = HE_img_dir,
-                                                IHC_img_dir = IHC_img_dir,
-                                                img_size= params['img_size'],
-                                                )
-    
-    test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
-
-    ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
-    ssim = ssim.cuda()
-    ssim_scores = []
-
-    psnr = PeakSignalNoiseRatio()
-    psnr = psnr.cuda()
-    psnr_scores = []
-
-    for i, (real_HE, real_IHC) in enumerate(test_data_loader):
-        fake_IHC = model(real_HE)
-        fake_IHC = utils.norm_tensor_to_01(fake_IHC)
-        
-        ssim_scores.append(ssim(fake_IHC, real_IHC).item())
-        psnr_scores.append(psnr(fake_IHC, real_IHC).item())
-        
-
-    result['ssim_mean'].append(np.mean(ssim_scores))
-    result['ssim_std'].append(np.std(ssim_scores))
-
-    result['psnr_mean'].append(np.mean(psnr_scores))
-    result['psnr_std'].append(np.std(psnr_scores))
-
-# open file for writing
-f = open(result_dir,"w")
-
-# write file
-f.write( str(result) )
-
-# close file
-f.close()
+model_testing = eval.test_network(params,model)
+model_testing.fit()

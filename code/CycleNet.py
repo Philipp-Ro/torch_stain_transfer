@@ -48,6 +48,7 @@ class model(torch.nn.Module):
 
             train_data = loader.stain_transfer_dataset( epoch = epoch,
                                                         norm = self.params['norm'],
+                                                        grayscale = self.params['grayscale'],
                                                         num_epochs = self.params['num_epochs'],
                                                         HE_img_dir = HE_img_dir,
                                                         IHC_img_dir = IHC_img_dir,
@@ -62,8 +63,16 @@ class model(torch.nn.Module):
                 self.disc_Y_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_disc'] / (self.params['num_epochs'] - self.params['decay_epoch'])
                 self.gen_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
             
-            for i, (real_HE, real_IHC) in enumerate(train_data_loader):
-                
+            for i, (real_HE, real_HE_norm, real_IHC, real_IHC_norm) in enumerate(train_data_loader):
+                ## only norming the input of the generators 
+                if self.params['norm']== True:
+                    real_HE_in = real_HE_norm
+                    real_IHC_in = real_IHC_norm
+
+                else:
+                    real_HE_in = real_HE
+                    real_IHC_in = real_IHC
+
                 # Adversarial ground truths
                 valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
                 fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
@@ -77,11 +86,11 @@ class model(torch.nn.Module):
                 self.gen_optimizer.zero_grad() 
                 
                 # generate fake_HE and fake_IHC images with the generators
-                fake_IHC = self.gen_G(real_HE) 
-                fake_IHC = utils.norm_tensor_to_01(fake_IHC)
+                fake_IHC = self.gen_G(real_HE_in) 
+                
 
-                fake_HE = self.gen_F(real_IHC)
-                fake_HE = utils.norm_tensor_to_01(fake_HE)
+                fake_HE = self.gen_F(real_IHC_in)
+              
 
                 # ssim loss
                 ssim_IHC = ssim(fake_IHC, real_IHC)
