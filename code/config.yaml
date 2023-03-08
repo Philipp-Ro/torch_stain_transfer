@@ -22,7 +22,7 @@ model_name : 'Generator_G_weights.pth'
 #-----------------------------------------------------------------------------------------
 # set Generator architecture:
 # options are: 'trans' or 'conv'
-gen_architecture : 'conv'
+gen_architecture : 'trans'
 
 # set CycleGAN LR and optimisers
 learn_rate_disc : 0.0002
@@ -40,11 +40,11 @@ disc_lambda : 1
 ssim_lambda : 3
 psnr_lambda : 0.05
 
-# ---------------------------- 'CONV' ARCHITECTURE -------------------------------------------
-num_gen_filters : 32   #number of generator filters
-num_disc_filters : 64
-num_resnet : 9 #number of resnet blocks
 
+# ---------------------------- 'CONV' ARCHITECTURE -------------------------------------------
+num_gen_filters : 32   # num generator filters 
+num_resnet : 9         # num of resnet blocks in the generator
+num_disc_filters : 64  # num discriminator filters 
 
 
 # ---------------------------- 'TRANS' ARCHITECTURE -------------------------------------------

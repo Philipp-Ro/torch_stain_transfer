@@ -4,11 +4,12 @@ import math
 import numpy as np
 
 class PatchEmbedding(nn.Module):
-####### patch embedding ###########
+#------------------------------------------ Patch Embedding ------------------------------------------------------------------
 #   - in_channels are the input channels of the images for rgb = 3
 #   - patch_size is the sizes of the patches for the embedding 
 #   - img_size is the size of the input image (has to be quadratic)
 #   - embedding_dim are the dimentions for the embedding with embedding_dim=0 it will be automaticly calculated 
+
     def __init__(self, in_channels, patch_size, embedding_dim):
         super().__init__()
         
@@ -35,7 +36,7 @@ class PatchEmbedding(nn.Module):
 # 3) permute the output tensor so that it has the form [batch_size, embedding_dim, num_patches] 
         return x_flattened
     
-######### CREATE A MASK FOR POSITIONAL EMBEDDING ######################################  
+# ---------------------------- Positional Embedding ---------------------------------------------------------
 def getPositionEmbedding(embedding_dim, num_patches, n=10000):
     # the n variable is scalling the values in the positional embedding in the attention is all you need paper n=10000 was choosen 
     p_embedding = torch.zeros((embedding_dim, num_patches))
@@ -87,37 +88,46 @@ class Generator(nn.Module):
             print('img_size / patch_size has to have no rest')
 
         # number of patches in image for given patchsize 
-        num_patches = (img_size * img_size) // patch_size**2 
+        self.num_patches = (img_size * img_size) // patch_size**2 
         # number of valiables in input image ( num_channels* img_height* img_width)
         num_values = in_channels * img_size**2
-        if num_values % num_patches == 0:
-            self.embedding_dim =  int(num_values/num_patches)
+        if num_values % self.num_patches == 0:
+            self.embedding_dim =  int(num_values/self.num_patches)
         else:
             print('num_values / patch_num has to have no rest')
 
         # create patches from the imput image the output by the PatchEmbedding is : [batch_size, num_patches, embedding_dim ]
         # where as the embedding_dim is choosen as patch_size**2 * in_channels 
-        self.patch_embedding = PatchEmbedding(in_channels=self.in_channels,patch_size=self.patch_size, embedding_dim=self.embedding_dim)
-    
-        self.num_patches = (img_size * img_size) // patch_size**2 
+        self.patch_embedding = PatchEmbedding(in_channels=self.in_channels,patch_size=self.patch_size, embedding_dim=self.embedding_dim)   
 
         self.embedding_dropout = nn.Dropout(p=self.dropout_embedding)
 
-        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model= self.embedding_dim,
-                                                               nhead=self.nhead ,
-                                                               dim_feedforward=2048,
-                                                               dropout=0.1,
-                                                               activation="gelu",
-                                                               batch_first=True,
-                                                               norm_first=True)
+        self.transformer_encoder_layer = nn.TransformerEncoderLayer(    d_model= self.embedding_dim,
+                                                                        nhead=self.nhead ,
+                                                                        dim_feedforward=2048,
+                                                                        dropout=0.1,
+                                                                        activation="gelu",
+                                                                        batch_first=True,
+                                                                        norm_first=True
+                                                                        )
         
         self.transformer_encoder = nn.TransformerEncoder(
-                                                    encoder_layer=self.transformer_encoder_layer,
-                                                    num_layers=self.num_layers)
+                                                            encoder_layer=self.transformer_encoder_layer,
+                                                            num_layers=self.num_layers
+                                                            )
         
-        self.upsample = nn.PixelShuffle(self.num_patches)
         
-        #self.linear = nn.Sequential(nn.Conv2d(self.embedding_dim, 3, 1, 1, 0))
+        # the pixel shuffel will rearange the tensor to :
+        # C_out = C_in / upscale_factor**2
+        # H_out = H_in * upscale_factor
+        # W_out = W_in * upscale_factor
+        upscale_factor = self.patch_size
+        self.reshape = nn.PixelShuffle(upscale_factor)
+
+        # using a conv layer and a nn.Tanh for the output so the CycleNet model cann have the same output as the conv generator 
+        self.out = nn.Sequential(nn.Conv2d(self.in_channels, self.in_channels, 1, 1, 0),
+                                  nn.Tanh()
+                                )
 
     def forward(self, x):
 
@@ -125,7 +135,7 @@ class Generator(nn.Module):
 
         x = self.patch_embedding(x)
         # Tensor enbedding: [batch_size, embedding_dim, num_patches]
-
+    
         pos_embedding = getPositionEmbedding(self.embedding_dim, self.num_patches, n=1000)
         pos_embedding = pos_embedding.cuda()
         # positional enbedding: [batch_size, embedding_dim, num_patches]
@@ -133,18 +143,19 @@ class Generator(nn.Module):
         x = pos_embedding + x
         
         x = self.embedding_dropout(x)
-
+    
         x = x.permute(0, 2, 1)
         
         x = self.transformer_encoder(x)
 
         x = x.permute(0, 2, 1)
-        print(x.shape)
-
+       
         x = x.view(1, self.embedding_dim, int(math.sqrt(self.num_patches)), int(math.sqrt(self.num_patches)))
-
-        x = self.upsample(x)
-
-        
+       
+        x = self.reshape(x)
+    
+        x = self.out(x)
+    
+    
         return x
     
