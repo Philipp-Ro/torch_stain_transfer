@@ -4,11 +4,12 @@
 #---------------------------------------------------------------------------------------
 # input
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
-img_size : [64,64]
+img_size : [256,256]
+in_channels : 3
 num_epochs : 1
 decay_epoch : 1
 batch_size : 1
-norm : True
+norm : False
 grayscale : False
 
 # output save dirs
@@ -19,31 +20,34 @@ model_name : 'Generator_G_weights.pth'
 #-----------------------------------------------------------------------------------------
 # Model selection
 #-----------------------------------------------------------------------------------------
-#set Generator architecture
-conv_net : 1
-trans_net: 0
+# set Generator architecture:
+# options are: 'trans' or 'conv'
+gen_architecture : 'conv'
 
 # set CycleGAN LR and optimisers
 learn_rate_disc : 0.0002
 learn_rate_gen : 0.0002
 
-beta1 : 0.5    #beta1 for Adam optimizer
-beta2 : 0.999  #beta2 for Adam optimizer
+# the beta1 and beta2 for the Adam optimizer used for both the total generator optimizer and total disc optimizer 
+beta1 : 0.5   
+beta2 : 0.999  
 
 # set CycleGAN loss hyperparameter
 cycle_lambda : 4
-identity_lambda : 2
-generator_lambda : 1
+identity_lambda : .4
+generator_lambda : 2
 disc_lambda : 1
 ssim_lambda : 3
 psnr_lambda : 0.05
 
-# set conv architecture
+# ---------------------------- 'CONV' ARCHITECTURE -------------------------------------------
 num_gen_filters : 32   #number of generator filters
 num_disc_filters : 64
-num_resnet : 6 #number of resnet blocks
+num_resnet : 9 #number of resnet blocks
 
-# set transformer architecture
+
+
+# ---------------------------- 'TRANS' ARCHITECTURE -------------------------------------------
 nhead : 4
 patch_size : 16
 num_layers : 4

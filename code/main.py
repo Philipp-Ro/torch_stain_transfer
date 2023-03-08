@@ -6,8 +6,6 @@ import CycleNet
 import transformer_models
 import eval
 
-
-
 # -----------------------------------------------------------------------------------------
 # load config and intialize Generators and Discriminators
 # ------------------------------------------------------------------------------------------
@@ -16,30 +14,26 @@ params = utils.get_config_from_yaml('C:/Users/phili/OneDrive/Uni/WS_22/Masterarb
 
 # set in_channels of networks depending on grayscale 
 if params['grayscale'] == True:
-        in_channels = 1
+    in_channels = 3 # grayscale == 1 ? 
 else:
      in_channels = 3
 
-if params['conv_net'] == 1:
+if params['gen_architecture'] == 'conv':
     
-    gen_G = conv_models.GeneratorResNet(in_channels= 3,
+    gen_G = conv_models.GeneratorResNet(in_channels= params['in_channels'],
                                         num_residual_blocks = params['num_resnet']
                                         )
     
-    gen_F = conv_models.GeneratorResNet(in_channels= 3, 
+    gen_F = conv_models.GeneratorResNet(in_channels= params['in_channels'], 
                                         num_residual_blocks = params['num_resnet']
                                         )
     
-    gen_test = conv_models.GeneratorResNet(in_channels= 3,
-                                           num_residual_blocks = params['num_resnet']
-                                           )
 
     disc_X = conv_models.Discriminator(in_channels= in_channels)
     disc_Y = conv_models.Discriminator(in_channels= in_channels)
 
     gen_G = gen_G.cuda()
     gen_F = gen_F.cuda()
-    gen_test = gen_test.cuda()
 
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()
@@ -50,7 +44,7 @@ if params['conv_net'] == 1:
     disc_Y.apply(CycleNet.weights_init_normal)
 
 
-if params['trans_net']== 1:
+if params['gen_architecture']== 'trans':
     
     gen_G = transformer_models.Generator(   img_size= params['img_size'][0],
                                             embedding_dim=0,
@@ -70,21 +64,12 @@ if params['trans_net']== 1:
                                             num_layers=params['num_layers']
                                             )
     
-    gen_test = transformer_models.Generator(   img_size= params['img_size'][0],
-                                            embedding_dim=0,
-                                            patch_size=params['patch_size'],
-                                            in_channels=params['in_channels'],
-                                            dropout_embedding=params['dropout_embedding'],
-                                            nhead= params['nhead'],
-                                            num_layers=params['num_layers']
-                                            )
     
-    disc_X = conv_models.Discriminator(3)
-    disc_Y = conv_models.Discriminator(3)
+    disc_X = conv_models.Discriminator(in_channels= params['in_channels'])
+    disc_Y = conv_models.Discriminator(in_channels= params['in_channels'])
 
     gen_G = gen_G.cuda()
     gen_F = gen_F.cuda()
-    gen_test = gen_test.cuda()
 
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()  
@@ -93,10 +78,11 @@ if params['trans_net']== 1:
 # intitialise optimisers and Cyclenet
 # ------------------------------------------------------------------------------------------
 gen_optimizer = torch.optim.Adam(itertools.chain(gen_G.parameters(), gen_F.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
-disc_X_optimizer = torch.optim.Adam(disc_X.parameters(), lr=params['learn_rate_disc'], betas=(params['beta1'], params['beta2']))
-disc_Y_optimizer = torch.optim.Adam(disc_Y.parameters(), lr=params['learn_rate_disc'], betas=(params['beta1'], params['beta2']))
 
-model = CycleNet.model(params,gen_G, gen_F,disc_X, disc_Y, disc_X_optimizer, disc_Y_optimizer, gen_optimizer)
+disc_optimizer = torch.optim.Adam(itertools.chain(disc_X.parameters(), disc_Y.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
+
+
+model = CycleNet.model(params,gen_G, gen_F,disc_X, disc_Y, disc_optimizer, gen_optimizer)
 # train network
 gen_G, gen_F, disc_X, disc_Y = model.fit()
 
@@ -114,7 +100,6 @@ torch.save(gen_G.state_dict(), model_path)
 # -----------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-model = gen_test
 
-model_testing = eval.test_network(params,model)
+model_testing = eval.test_network(params)
 model_testing.fit()

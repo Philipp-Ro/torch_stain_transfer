@@ -7,18 +7,21 @@ import loader
 import numpy as np
 import random
 import utils
+import conv_models
+import transformer_models
 
 class test_network():
-    def __init__(self,params,model):
+    def __init__(self,params):
         self.output_folder_path = os.path.join(params['output_path'],params['output_folder'])
         self.model_path = os.path.join(self.output_folder_path,params['model_name'])
         self.config_path =  os.path.join(self.output_folder_path,'/config.yaml')
         test_path = params['test_dir']
-        self.HE_img_dir = os.path.join(test_path,'HE_imgs/HE')
-        self.IHC_img_dir = os.path.join(test_path,'IHC_imgs/IHC')
+        self.HE_img_dir = os.path.join(test_path,'HE')
+        self.IHC_img_dir = os.path.join(test_path,'IHC')
         self.result_dir = os.path.join(self.output_folder_path,'result.txt')
-        self.model = model
         self.params = params
+
+        self.model = initialize_gen_model(params)
 
 
     def fit(self):
@@ -36,10 +39,9 @@ class test_network():
         for epoch in range(self.params['num_epochs']):
     
             result['epoch'].append(epoch)
-            test_data = loader.stain_transfer_dataset(  epoch = epoch,
+            test_data = loader.stain_transfer_dataset(  img_patch= epoch,
                                                         norm = self.params['norm'],
                                                         grayscale = self.params['grayscale'],
-                                                        num_epochs = self.params['num_epochs'],
                                                         HE_img_dir = self.HE_img_dir,
                                                         IHC_img_dir = self.IHC_img_dir,
                                                         img_size= self.params['img_size'],
@@ -62,11 +64,15 @@ class test_network():
                 n = random.randint(1,len(test_data_loader))
                 randomlist.append(n)
 
-            for i, (real_HE,real_HE_norm, real_IHC,real_IHC_norm) in enumerate(test_data_loader):
+            for i, (real_HE,real_HE_norm, real_IHC,real_IHC_norm, img_name) in enumerate(test_data_loader):
                 fake_IHC = self.model(real_HE)
+                fake_IHC = fake_IHC+1
+                fake_IHC = fake_IHC*0.5
 
                 if i in randomlist:
-                    utils.plot_img_set(real_HE, real_IHC, fake_IHC, i,self.params)
+                    print(img_name)
+                    #print(img_name.type())
+                    utils.plot_img_set(real_HE, real_IHC, fake_IHC, i,self.params,img_name)
             
                 
                 ssim_scores.append(ssim(fake_IHC, real_IHC).item())
@@ -87,5 +93,25 @@ class test_network():
 
         # close file
         f.close()
+
+
+def initialize_gen_model(params):
+    if params['gen_architecture'] == 'conv':
+        gen_test = conv_models.GeneratorResNet( in_channels= params['in_channels'],
+                                                num_residual_blocks = params['num_resnet']
+                                            )
+        
+    if params['gen_architecture'] == 'trans':
+        gen_test = transformer_models.Generator(    img_size= params['img_size'][0],
+                                                    embedding_dim=0,
+                                                    patch_size=params['patch_size'],
+                                                    in_channels=params['in_channels'],
+                                                    dropout_embedding=params['dropout_embedding'],
+                                                    nhead= params['nhead'],
+                                                    num_layers=params['num_layers']
+                                            )
+    gen_test = gen_test.cuda()
+
+    return gen_test
 
 

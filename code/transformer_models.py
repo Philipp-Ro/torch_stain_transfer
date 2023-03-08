@@ -49,7 +49,9 @@ def getPositionEmbedding(embedding_dim, num_patches, n=10000):
     
 
 class Generator(nn.Module):
-###### GENERATOR CLASS #############
+#---------------------------------- GENERATOR CLASS ---------------------------------------------------------------------------
+#
+#
 # 1) set up the embedding of input img :
 #        - img_size is the size of the input inmage of the generator 
 #        - embedding_dim : the dimentions used also in the transformer
@@ -137,6 +139,7 @@ class Generator(nn.Module):
         x = self.transformer_encoder(x)
 
         x = x.permute(0, 2, 1)
+        print(x.shape)
 
         x = x.view(1, self.embedding_dim, int(math.sqrt(self.num_patches)), int(math.sqrt(self.num_patches)))
 
