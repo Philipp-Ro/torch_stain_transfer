@@ -17,3 +17,5 @@ pip install torch-summary
 (pip install pytorch-ignite)
 
 pip install torchmetrics
+
+ pip install tqdm

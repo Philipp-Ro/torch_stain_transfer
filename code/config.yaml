@@ -22,7 +22,7 @@ model_name : 'Generator_G_weights.pth'
 #-----------------------------------------------------------------------------------------
 # set Generator architecture:
 # options are: 'trans' or 'conv'
-gen_architecture : 'trans'
+gen_architecture : 'conv'
 
 # set CycleGAN LR and optimisers
 learn_rate_disc : 0.0002

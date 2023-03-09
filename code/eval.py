@@ -14,7 +14,7 @@ class test_network():
     def __init__(self,params):
         self.output_folder_path = os.path.join(params['output_path'],params['output_folder'])
         self.model_path = os.path.join(self.output_folder_path,params['model_name'])
-        self.config_path =  os.path.join(self.output_folder_path,'/config.yaml')
+        self.config_path =  os.path.join(self.output_folder_path,'config.yaml')
         test_path = params['test_dir']
         self.HE_img_dir = os.path.join(test_path,'HE')
         self.IHC_img_dir = os.path.join(test_path,'IHC')

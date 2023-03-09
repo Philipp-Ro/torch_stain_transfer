@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader
 import utils
 from torchmetrics import StructuralSimilarityIndexMeasure
 from torchmetrics import PeakSignalNoiseRatio
+import time
+from tqdm import tqdm
 
 class model(torch.nn.Module):
     def __init__(self,params, generator_G, generator_F, discriminator_X, discriminator_Y, disc_optimizer, gen_optimizer):
@@ -48,7 +50,7 @@ class model(torch.nn.Module):
             num_patches = (1024 * 1024) // self.params['img_size'][0]**2 
             if k>num_patches:
                 k=1
-                
+
             train_data = loader.stain_transfer_dataset( img_patch=  k,
                                                         norm = self.params['norm'],
                                                         grayscale = self.params['grayscale'],
@@ -64,8 +66,13 @@ class model(torch.nn.Module):
                 self.disc_X_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_disc'] / (self.params['num_epochs'] - self.params['decay_epoch'])
                 self.disc_Y_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_disc'] / (self.params['num_epochs'] - self.params['decay_epoch'])
                 self.gen_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
+
+ 
+            train_loop = tqdm(enumerate(train_data_loader), total = len(train_data_loader), leave= False)
             
-            for i, (real_HE, real_HE_norm, real_IHC, real_IHC_norm,img_name) in enumerate(train_data_loader):
+            for i, (real_HE, real_HE_norm, real_IHC, real_IHC_norm,img_name) in train_loop :
+                # time epoch 
+                t0 = time.time()
                 ## only norming the input of the generators 
                 if self.params['norm']== True:
                     real_HE_in = real_HE_norm
@@ -182,23 +189,16 @@ class model(torch.nn.Module):
                 loss_disc_total.backward()
                 self.disc_optimizer.step()
 
+              
+
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
-                if (i+1) % 100 == 0:
-                    
-                    print('[Epoch %d/%d] [Batch %d/%d] [total_disc_loss : %f] [loss_gen_total : %f - (loss_gen_G_total : %f, loss_cycle_G : %f, loss_id_IHC : %f ,ssim : %f ,psnr : %f)]'
-                            %(epoch+1,self.params['num_epochs'],        # [Epoch -]
-                            i+1,len(train_data_loader),                 # [Batch -]
-                            loss_disc_total.item(),                     # [total_disc_loss -]
-                            loss_gen_total.item(),                      # [loss_gen_total -]
-                            loss_gen_G_total.item(),                    # [loss_gen_G_total -]
-                            loss_cycle_G.item(),                        # [loss_cycle_G -]
-                            loss_id_IHC.item(),                         # [loss_id_IHC -]
-                            loss_ssim.item(),                           # [ssim -]
-                            loss_psnr.item(),                           # [psnr -]
-                            ))
 
+                if (i+1) % 100 == 0:
+                    train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
+                    train_loop.set_postfix(loss_gen_G=loss_gen_G_total.item(), ssim = ssim_IHC)
+              
         return self.gen_G, self.gen_F, self.disc_X, self.disc_Y
 
 

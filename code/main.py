@@ -6,7 +6,7 @@ import CycleNet
 import transformer_models
 import eval
 
-# -----------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 # load config and intialize Generators and Discriminators
 # ------------------------------------------------------------------------------------------
 
@@ -74,7 +74,7 @@ if params['gen_architecture']== 'trans':
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()  
 
-# -----------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 # intitialise optimisers and Cyclenet
 # ------------------------------------------------------------------------------------------
 gen_optimizer = torch.optim.Adam(itertools.chain(gen_G.parameters(), gen_F.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
@@ -87,7 +87,7 @@ model = CycleNet.model(params,gen_G, gen_F,disc_X, disc_Y, disc_optimizer, gen_o
 gen_G, gen_F, disc_X, disc_Y = model.fit()
 
 
-# -----------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 # save the trained model 
 # ------------------------------------------------------------------------------------------
 output_folder_path = os.path.join(params['output_path'],params['output_folder'])
@@ -97,7 +97,7 @@ config_path =  os.path.join(output_folder_path,'config.yaml')
 utils.save_config_in_dir(config_path, params)
 torch.save(gen_G.state_dict(), model_path)
 
-# -----------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
 
