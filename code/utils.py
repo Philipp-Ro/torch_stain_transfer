@@ -33,7 +33,7 @@ def plot_img_set(real_HE, real_IHC, fake_IHC, i,params,img_name):
     real_HE = np.transpose(real_HE, axes=[1,2,0])
     fake_IHC = np.transpose(fake_IHC, axes=[1,2,0])
     real_IHC = np.transpose(real_IHC, axes=[1,2,0])
-    print(img_name)
+    
 
     fig = plt.figure()
     fig.add_subplot(1, 3, 1)       

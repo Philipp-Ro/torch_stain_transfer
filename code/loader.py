@@ -6,14 +6,14 @@ from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms as transforms
 import numpy as np
+import torchvision.transforms.functional as fn
 
 class stain_transfer_dataset(Dataset):
-    def __init__(self,img_patch, HE_img_dir,IHC_img_dir, norm=True,grayscale=False, img_size=(1024,1024)):
+    def __init__(self,img_patch, HE_img_dir,IHC_img_dir,preprocess_list, img_size=(1024,1024)):
         self.HE_img_dir = HE_img_dir
         self.IHC_img_dir = IHC_img_dir
-        self.norm = norm
-        self.grayscale = grayscale
-        self.transform_gray = transforms.Grayscale(3)
+        self.img_names =  os.listdir(self.HE_img_dir)
+        self.preprocess_list = preprocess_list
 
         if img_size[0]==img_size[1]:
             self.img_size = img_size[0]
@@ -30,52 +30,36 @@ class stain_transfer_dataset(Dataset):
 
 
     def __getitem__(self, idx):
-        HE_img_path = os.path.join(self.HE_img_dir, self.img_names[idx])
-        IHC_img_path = os.path.join(self.IHC_img_dir, self.img_names[idx])
 
-        HE_img = load_image_to_tensor(img_path=HE_img_path,norm_token = False)
-        IHC_img = load_image_to_tensor(img_path=IHC_img_path,norm_token = False)
+        HE_img= load_image_to_tensor(idx= idx, folder_dir=self.HE_img_dir, img_names=self.img_names, preprocess_list=self.preprocess_list)
+        IHC_img = load_image_to_tensor(idx= idx, folder_dir=self.IHC_img_dir, img_names=self.img_names, preprocess_list=self.preprocess_list)
 
-        HE_img_norm = load_image_to_tensor(img_path=HE_img_path,norm_token = True)
-        IHC_img_norm = load_image_to_tensor(img_path=IHC_img_path,norm_token = True)
-
-        HE_patches_norm = HE_img_norm.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
-        IHC_patches_norm = IHC_img_norm.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
-
+        HE_img = HE_img.cuda()
+        IHC_img = IHC_img.cuda()
+     
         HE_patches = HE_img.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
         IHC_patches = IHC_img.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
 
         # reshape the images 
-        HE_tensor_norm = reshape_img(HE_patches_norm, self.img_size, self.img_patch)
-        IHC_tensor_norm = reshape_img(IHC_patches_norm, self.img_size, self.img_patch)
+
         HE_tensor = reshape_img(HE_patches, self.img_size, self.img_patch)
         IHC_tensor = reshape_img(IHC_patches, self.img_size, self.img_patch)
        
-
-        if self.grayscale == True:
-                HE_tensor_norm = self.transform_gray(HE_tensor_norm)
-                IHC_tensor_norm = self.transform_gray(IHC_tensor_norm)
-                HE_tensor = self.transform_gray(HE_tensor)
-                IHC_tensor = self.transform_gray(IHC_tensor)
-
-        return HE_tensor, HE_tensor_norm, IHC_tensor, IHC_tensor_norm, self.img_names[idx]
+        return HE_tensor,  IHC_tensor, self.img_names[idx]
 
 
-def load_image_to_tensor(img_path,norm_token):
+def load_image_to_tensor(idx, folder_dir, img_names,preprocess_list):
+    img_path = os.path.join(folder_dir, img_names[idx])
     pil_img = Image.open(img_path)
-    
-    if norm_token==True:
-        transform = transforms.Compose([
-        transforms.ToTensor(),
-        
-    ])
-    else:
-        transform = transforms.Compose([
-        transforms.ToTensor()
-    ])
-        
-    img_tensor = transform(pil_img)
-    img_tensor = img_tensor.cuda()
+    img_tensor = fn.to_tensor(pil_img)
+    img_tensor, skip_token = preprocess_img(preprocess_list, img_tensor)
+
+    if skip_token==1:
+        img_path = os.path.join(folder_dir, img_names[idx+1])
+        pil_img = Image.open(img_path)
+        img_tensor = fn.to_tensor(pil_img)
+        img_tensor, skip_token = preprocess_img(preprocess_list, img_tensor)
+
     return img_tensor
 
 def reshape_img(img, img_size, img_patch):
@@ -84,3 +68,28 @@ def reshape_img(img, img_size, img_patch):
     img = torch.permute(img,(1,0,2,3)) 
     img = img[img_patch,:,:,:]
     return img
+
+def preprocess_img(preprocess_list, img_tensor):
+
+    transform_list = []
+    skip_token = 0
+
+    if "grayscale" in preprocess_list:
+         transform_list.append(transforms.Grayscale(3))
+    if "normelise" in preprocess_list:
+        mean, std = img_tensor.mean(), img_tensor.std()
+        if mean == 0 or std == 0:
+            skip_token = 1
+            img_preprocessed = []
+        transform_list.append(transforms.Normalize(mean, std))
+    if transform_list != []:
+        preprocess_img = transforms.Compose(transform_list)
+        img_preprocessed = preprocess_img(img_tensor)
+    else:
+        img_preprocessed = img_tensor
+    return img_preprocessed, skip_token
+
+
+
+    
+

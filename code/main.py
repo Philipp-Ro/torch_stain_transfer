@@ -12,11 +12,8 @@ import eval
 
 params = utils.get_config_from_yaml('C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/code/config.yaml')
 
-# set in_channels of networks depending on grayscale 
-if params['grayscale'] == True:
-    in_channels = 3 # grayscale == 1 ? 
-else:
-     in_channels = 3
+
+in_channels = 3
 
 if params['gen_architecture'] == 'conv':
     
@@ -83,9 +80,9 @@ disc_optimizer = torch.optim.Adam(itertools.chain(disc_X.parameters(), disc_Y.pa
 
 
 model = CycleNet.model(params,gen_G, gen_F,disc_X, disc_Y, disc_optimizer, gen_optimizer)
-# train network
-gen_G, gen_F, disc_X, disc_Y = model.fit()
 
+# --------------------------- Train Network ------------------------------------------------
+gen_G, gen_F, disc_X, disc_Y = model.fit()
 
 # ------------------------------------------------------------------------------------------
 # save the trained model 

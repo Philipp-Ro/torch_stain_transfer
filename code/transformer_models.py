@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import math
 import numpy as np
+import time
 
 class PatchEmbedding(nn.Module):
 #------------------------------------------ Patch Embedding ------------------------------------------------------------------
@@ -36,7 +37,7 @@ class PatchEmbedding(nn.Module):
 # 3) permute the output tensor so that it has the form [batch_size, embedding_dim, num_patches] 
         return x_flattened
     
-# ---------------------------- Positional Embedding ---------------------------------------------------------
+# ---------------------------- Positional Embedding ----------------------------------------------------------------------------
 def getPositionEmbedding(embedding_dim, num_patches, n=10000):
     # the n variable is scalling the values in the positional embedding in the attention is all you need paper n=10000 was choosen 
     p_embedding = torch.zeros((embedding_dim, num_patches))
@@ -50,7 +51,7 @@ def getPositionEmbedding(embedding_dim, num_patches, n=10000):
     
 
 class Generator(nn.Module):
-#---------------------------------- GENERATOR CLASS ---------------------------------------------------------------------------
+#---------------------------------- Generator Class ---------------------------------------------------------------------------
 #
 #
 # 1) set up the embedding of input img :
@@ -132,8 +133,9 @@ class Generator(nn.Module):
     def forward(self, x):
 
         # Tensor input image: [batch_size, in_channel, img_size, img_size]
-
+        tic_embedding = time.perf_counter()
         x = self.patch_embedding(x)
+        toc_embedding = time.perf_counter()
         # Tensor enbedding: [batch_size, embedding_dim, num_patches]
     
         pos_embedding = getPositionEmbedding(self.embedding_dim, self.num_patches, n=1000)
@@ -145,8 +147,12 @@ class Generator(nn.Module):
         x = self.embedding_dropout(x)
     
         x = x.permute(0, 2, 1)
-        
+
+        tic_trans = time.perf_counter()
         x = self.transformer_encoder(x)
+        toc_trans = time.perf_counter()
+        print(f"calculation transformer  {toc_trans - tic_trans:0.4f} seconds")
+        print(f"embedding transformer  {toc_embedding - tic_embedding:0.4f} seconds")
 
         x = x.permute(0, 2, 1)
        
@@ -155,7 +161,6 @@ class Generator(nn.Module):
         x = self.reshape(x)
     
         x = self.out(x)
-    
     
         return x
     

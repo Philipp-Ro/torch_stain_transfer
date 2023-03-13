@@ -70,8 +70,6 @@ class test_network():
                 fake_IHC = fake_IHC*0.5
 
                 if i in randomlist:
-                    print(img_name)
-                    #print(img_name.type())
                     utils.plot_img_set(real_HE, real_IHC, fake_IHC, i,self.params,img_name)
             
                 
