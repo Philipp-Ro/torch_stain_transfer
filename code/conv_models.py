@@ -16,8 +16,9 @@ class ResidualBlock(nn.Module):
         return x + self.block(x)
 
 class GeneratorResNet(nn.Module):
-    def __init__(self, in_channels, num_residual_blocks=9):
+    def __init__(self, in_channels,U_net_filter_groth,U_net_step_num, num_residual_blocks):
         super(GeneratorResNet, self).__init__()
+
         
         # Inital Convolution:  3 * [img_height] * [img_width] ----> 64 * [img_height] * [img_width]
         out_channels=64
@@ -32,8 +33,8 @@ class GeneratorResNet(nn.Module):
         
         # Downsampling   64*256*256 -> 128*128*128 -> 256*64*64
         self.down = []
-        for _ in range(2):
-            out_channels = channels * 2
+        for _ in range(U_net_step_num):
+            out_channels = channels * U_net_filter_groth
             self.down += [
                 nn.Conv2d(channels, out_channels, 3, stride=2, padding=1),
                 nn.InstanceNorm2d(out_channels),
@@ -48,8 +49,8 @@ class GeneratorResNet(nn.Module):
         
         # Upsampling  256*64*64 -> 128*128*128 -> 64*256*256
         self.up = []
-        for _ in range(2):
-            out_channels = channels // 2
+        for _ in range(U_net_step_num):
+            out_channels = channels // U_net_filter_groth
             self.up += [
                 nn.Upsample(scale_factor=2), # bilinear interpolation
                 nn.Conv2d(channels, out_channels, 3, stride=1, padding=1),
@@ -67,11 +68,17 @@ class GeneratorResNet(nn.Module):
         )
     
     def forward(self, x):
+       
         x = self.conv(x)
+        
         x = self.down(x)
+        
         x = self.trans(x)
+        
         x = self.up(x)
+        
         x = self.out(x)
+        
         return x
 
 class Discriminator(nn.Module):

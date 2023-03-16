@@ -70,7 +70,7 @@ class Generator(nn.Module):
 #        - use the encoder-layer set up in 2) 
 #        - num_layers defines the number of encoder-layers in the encoder
 
-    def __init__(self,img_size,embedding_dim, patch_size, in_channels, dropout_embedding, nhead,num_layers):
+    def __init__(self,img_size,embedding_dim, patch_size, in_channels, dropout_embedding, nhead, num_layers):
         super(Generator, self).__init__()
         
         self.img_size = img_size

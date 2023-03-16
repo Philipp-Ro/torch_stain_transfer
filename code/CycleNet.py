@@ -46,7 +46,7 @@ class model(torch.nn.Module):
         psnr = PeakSignalNoiseRatio().cuda()
         k =0
         for epoch in range(self.params['num_epochs']):
-            k = k+1
+           
             # the dataset is set up he coppes images out of the original image i the set size 
             # each epoch he takes a new slice of the original image 
             # recomended sizes [64,64] / [128,128] / [256, 256]  
@@ -58,7 +58,8 @@ class model(torch.nn.Module):
                 k=1
 
             train_data = loader.stain_transfer_dataset( img_patch=  k,
-                                                        preprocess_list = self.params['preprocess_list'],
+                                                        preprocess_HE = self.params['preprocess_HE'],
+                                                        preprocess_IHC = self.params['preprocess_IHC'],
                                                         HE_img_dir = HE_img_dir,
                                                         IHC_img_dir = IHC_img_dir,
                                                         img_size= self.params['img_size'],
@@ -75,10 +76,6 @@ class model(torch.nn.Module):
             train_loop = tqdm(enumerate(train_data_loader), total = len(train_data_loader), leave= False)
             
             for i, (real_HE, real_IHC,img_name) in train_loop :
-                
-
-                real_HE_in = real_HE
-                real_IHC_in = real_IHC
 
                 # Adversarial ground truths
                 valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
@@ -93,19 +90,10 @@ class model(torch.nn.Module):
                 # the output layer of the conv and the trans model is a nn.Tanh layer:
                 # output shape [1, in_channels, img_size, img_size]
                 # output range [-1, 1]
-                #
-                # to scale this output to the range of the orignial image:
-                # fake_IHC = fake_IHC+1
-                # fake_IHC = fake_IHC*0.5
 
-                fake_IHC = self.gen_G(real_HE_in) 
-                fake_IHC = fake_IHC+1
-                fake_IHC = fake_IHC*0.5
+                fake_IHC = self.gen_G(real_HE) 
 
-                fake_HE = self.gen_F(real_IHC_in)
-                fake_HE = fake_HE+1
-                fake_HE = fake_HE*0.5
-
+                fake_HE = self.gen_F(real_IHC)
 
                 # --------------------------- Calculate losses ---------------------------------------------
                 #
@@ -113,29 +101,29 @@ class model(torch.nn.Module):
                 #loss_gen_G = criterion_GAN(self.disc_X(fake_IHC), valid) 
                 #loss_gen_F= criterion_GAN(self.disc_Y(fake_HE), valid)
 
-                loss_gen_G = criterion_GAN(fake_IHC, real_IHC_in) 
-                loss_gen_F = criterion_GAN(fake_HE, real_HE_in)         
+                loss_gen_G = criterion_GAN(fake_IHC, real_IHC) 
+                loss_gen_F = criterion_GAN(fake_HE, real_HE)         
 
                 # ssim loss
-                ssim_IHC = ssim(fake_IHC, real_IHC_in)
+                ssim_IHC = ssim(fake_IHC, real_IHC)
                 ssim_HE = ssim(fake_HE, real_HE)
                 loss_ssim = ((1-ssim_IHC) + (1-ssim_HE))/2
 
                 # psnr loss 
-                psnr_IHC = psnr(fake_IHC, real_IHC_in)
-                psnr_HE = psnr(fake_HE, real_HE_in)
+                psnr_IHC = psnr(fake_IHC, real_IHC)
+                psnr_HE = psnr(fake_HE, real_HE)
                 loss_psnr = (psnr_IHC + psnr_HE)/2
 
                 # Identity Loss 
-                loss_id_HE = criterion_identity(self.gen_F(real_IHC_in), real_IHC_in) 
-                loss_id_IHC = criterion_identity(self.gen_G(real_HE_in), real_HE_in)
+                loss_id_HE = criterion_identity(self.gen_F(real_IHC), real_IHC) 
+                loss_id_IHC = criterion_identity(self.gen_G(real_HE), real_HE)
                                                                              
                 # Cycle Loss
                 cycled_IHC = self.gen_G(fake_HE) 
-                loss_cycle_G = criterion_cycle(cycled_IHC, real_IHC_in) 
+                loss_cycle_G = criterion_cycle(cycled_IHC, real_IHC) 
 
                 cycled_HE = self.gen_F(fake_IHC)
-                loss_cycle_F = criterion_cycle(cycled_HE, real_IHC_in)
+                loss_cycle_F = criterion_cycle(cycled_HE, real_IHC)
                 
                 # ------------------------- Apply Hyperparameters ---------------------------------
                 loss_gen_G = self.params['generator_lambda']*loss_gen_G
@@ -157,13 +145,10 @@ class model(torch.nn.Module):
                 loss_gen_total = loss_gen_G_total + loss_gen_F_total
                 
                 # ------------------------- Apply Weights ------------------------------------------
-                #self.timer.start()
+
                 self.gen_optimizer.zero_grad()
                 loss_gen_total.backward()
                 self.gen_optimizer.step()
-                #backprop_time = self.timer.stop()
-
-                #print(f"backprop transformer {backprop_time} seconds")
 
                 
                 # ---------------------------------------------------------------------------------
@@ -173,7 +158,7 @@ class model(torch.nn.Module):
                 # --------------------------- Discriminator X -------------------------------------
                 # Calculate loss
             
-                loss_real = criterion_GAN(self.disc_X(real_HE_in), valid) # train to discriminate real images as real
+                loss_real = criterion_GAN(self.disc_X(real_HE), valid) # train to discriminate real images as real
                 loss_fake = criterion_GAN(self.disc_X(fake_HE.detach()), fake) # train to discriminate fake images as fake
                 
                 loss_disc_X = (loss_real + loss_fake)/2
@@ -181,10 +166,9 @@ class model(torch.nn.Module):
                 # Apply Hyperparameter 
                 loss_disc_X = self.params['disc_lambda']*loss_disc_X 
                 
-
                 # --------------------------- Discriminator Y -------------------------------------
                 # Calculate loss
-                loss_real = criterion_GAN(self.disc_Y(real_IHC_in), valid) # train to discriminate real images as real
+                loss_real = criterion_GAN(self.disc_Y(real_IHC), valid) # train to discriminate real images as real
                 loss_fake = criterion_GAN(self.disc_Y(fake_IHC.detach()), fake) # train to discriminate fake images as fake
                 
                 loss_disc_Y = (loss_real + loss_fake)/2
@@ -201,9 +185,7 @@ class model(torch.nn.Module):
                 self.disc_optimizer.zero_grad()
                 loss_disc_total.backward()
                 self.disc_optimizer.step()
-
               
-
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
@@ -211,6 +193,7 @@ class model(torch.nn.Module):
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix(loss_gen_G=loss_gen_G_total.item(), ssim = ssim_IHC.item(), MSE_gen_G = loss_gen_G.item())
+            k = k+1
               
         return self.gen_G, self.gen_F, self.disc_X, self.disc_Y
 

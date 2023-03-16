@@ -40,11 +40,12 @@ class test_network():
     
             result['epoch'].append(epoch)
             test_data = loader.stain_transfer_dataset(  img_patch= epoch,
-                                                        norm = self.params['norm'],
-                                                        grayscale = self.params['grayscale'],
+                                                        preprocess_HE = self.params['preprocess_HE'],
+                                                        preprocess_IHC = self.params['preprocess_IHC'],
                                                         HE_img_dir = self.HE_img_dir,
                                                         IHC_img_dir = self.IHC_img_dir,
                                                         img_size= self.params['img_size'],
+
                                                         )
             
             test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
@@ -64,7 +65,7 @@ class test_network():
                 n = random.randint(1,len(test_data_loader))
                 randomlist.append(n)
 
-            for i, (real_HE,real_HE_norm, real_IHC,real_IHC_norm, img_name) in enumerate(test_data_loader):
+            for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
                 fake_IHC = self.model(real_HE)
                 fake_IHC = fake_IHC+1
                 fake_IHC = fake_IHC*0.5
@@ -96,7 +97,9 @@ class test_network():
 def initialize_gen_model(params):
     if params['gen_architecture'] == 'conv':
         gen_test = conv_models.GeneratorResNet( in_channels= params['in_channels'],
-                                                num_residual_blocks = params['num_resnet']
+                                                num_residual_blocks = params['num_resnet'],
+                                                U_net_filter_groth = params['U_net_filter_groth'],
+                                                U_net_step_num = params['U_net_step_num']
                                             )
         
     if params['gen_architecture'] == 'trans':

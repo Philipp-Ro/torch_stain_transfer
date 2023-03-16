@@ -18,11 +18,15 @@ in_channels = 3
 if params['gen_architecture'] == 'conv':
     
     gen_G = conv_models.GeneratorResNet(in_channels= params['in_channels'],
-                                        num_residual_blocks = params['num_resnet']
+                                        num_residual_blocks = params['num_resnet'],
+                                        U_net_filter_groth = params['U_net_filter_groth'],
+                                        U_net_step_num = params['U_net_step_num']
                                         )
     
     gen_F = conv_models.GeneratorResNet(in_channels= params['in_channels'], 
-                                        num_residual_blocks = params['num_resnet']
+                                        num_residual_blocks = params['num_resnet'],
+                                        U_net_filter_groth = params['U_net_filter_groth'],
+                                        U_net_step_num = params['U_net_step_num']
                                         )
     
 

@@ -14,17 +14,12 @@ def save_config_in_dir(saving_dir,code):
 
 
 
-def plot_img_set(real_HE, real_IHC, fake_IHC, i,params,img_name):
+def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name):
     fig_name = 'plot_'+ img_name[0]+ '.png'
 
     real_HE = real_HE.cpu().detach().numpy()
     fake_IHC = fake_IHC.cpu().detach().numpy()
     real_IHC = real_IHC.cpu().detach().numpy()
-
-    if params['norm']== True:
-        real_HE = real_HE.astype(np.uint8)
-        real_IHC = real_IHC.astype(np.uint8)
-        fake_IHC = fake_IHC.astype(np.uint8)
 
     real_HE = np.squeeze(real_HE )
     fake_IHC = np.squeeze(fake_IHC)
@@ -47,7 +42,6 @@ def plot_img_set(real_HE, real_IHC, fake_IHC, i,params,img_name):
     plt.axis('off')
     plt.title('fake_IHC')
             
-
     fig.add_subplot(1, 3, 3)    
     plt.imshow(real_IHC )
     plt.axis('off')

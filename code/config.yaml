@@ -1,25 +1,26 @@
 # set paths for imge folder ( 2 folders corresponding images have to have the same name)
-#---------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------
 # Training set_up
-#---------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------
 # input
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 15
-decay_epoch : 15
+num_epochs : 50
+decay_epoch : 5
 batch_size : 1
 # put "normalise" and " grayscale"
-preprocess_list : ["normalise"]
+preprocess_HE : ["colorjitter"]
+preprocess_IHC : ["colorjitter"]
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_03'
+output_folder : 'Test_01'
 model_name : 'Generator_G_weights.pth'
 
-#-----------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
 # Model selection
-#-----------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
 # set Generator architecture:
 # options are: 'trans' or 'conv'
 gen_architecture : 'conv'
@@ -45,6 +46,8 @@ psnr_lambda : 0.05
 num_gen_filters : 32   # num generator filters 
 num_resnet : 9         # num of resnet blocks in the generator
 num_disc_filters : 64  # num discriminator filters 
+U_net_filter_groth : 2
+U_net_step_num : 2
 
 
 # ---------------------------- 'TRANS' ARCHITECTURE -------------------------------------------
