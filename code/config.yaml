@@ -6,24 +6,24 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 50
+num_epochs : 5
 decay_epoch : 5
 batch_size : 1
 # put "normalise" and " grayscale"
-preprocess_HE : ["colorjitter"]
-preprocess_IHC : ["colorjitter"]
+preprocess_HE : ["normalise","colorjitter"]
+preprocess_IHC : ["normalise","colorjitter"]
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_01'
-model_name : 'Generator_G_weights.pth'
+output_folder : 'Test_03'
+model_name : 'gen_G_weights_final.pth'
 
-#--------------------------------------------------------------------------------------------
+#---------------------------------------------------------------------------------------------
 # Model selection
-#--------------------------------------------------------------------------------------------
+#---------------------------------------------------------------------------------------------
 # set Generator architecture:
 # options are: 'trans' or 'conv'
-gen_architecture : 'conv'
+gen_architecture : 'trans'
 
 # set CycleGAN LR and optimisers
 learn_rate_disc : 0.0002
@@ -42,7 +42,7 @@ ssim_lambda : 3
 psnr_lambda : 0.05
 
 
-# ---------------------------- 'CONV' ARCHITECTURE --------------------------------------------
+# ---------------------------- 'CONV' ARCHITECTURE ---------------------------------------------
 num_gen_filters : 32   # num generator filters 
 num_resnet : 9         # num of resnet blocks in the generator
 num_disc_filters : 64  # num discriminator filters 
@@ -50,9 +50,9 @@ U_net_filter_groth : 2
 U_net_step_num : 2
 
 
-# ---------------------------- 'TRANS' ARCHITECTURE -------------------------------------------
+# ---------------------------- 'TRANS' ARCHITECTURE --------------------------------------------
 nhead : 4
-patch_size : 16
+patch_size : 32
 num_layers : 4
 dropout_embedding : 0.1    
 
@@ -61,6 +61,7 @@ dropout_embedding : 0.1
 # Testing
 #-----------------------------------------------------------------------------------------------
 test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
+num_test_epochs: 2
 plots_per_epoch : 2
 
 

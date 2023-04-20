@@ -26,7 +26,7 @@ class model(torch.nn.Module):
         # in our case:
         # Domain X = HE
         # Domain Y = IHC
-        #self.timer = Timer()
+        # self.timer = Timer()
         self.gen_G = generator_G
         self.gen_F = generator_F
         self.disc_X = discriminator_X
@@ -46,7 +46,7 @@ class model(torch.nn.Module):
         psnr = PeakSignalNoiseRatio().cuda()
         k =0
         for epoch in range(self.params['num_epochs']):
-           
+            print(k)    
             # the dataset is set up he coppes images out of the original image i the set size 
             # each epoch he takes a new slice of the original image 
             # recomended sizes [64,64] / [128,128] / [256, 256]  
@@ -54,7 +54,7 @@ class model(torch.nn.Module):
             IHC_img_dir = os.path.join(self.params['train_dir'],'IHC')
            
             num_patches = (1024 * 1024) // self.params['img_size'][0]**2 
-            if k>num_patches:
+            if k>num_patches-1:
                 k=1
 
             train_data = loader.stain_transfer_dataset( img_patch=  k,
@@ -98,11 +98,11 @@ class model(torch.nn.Module):
                 # --------------------------- Calculate losses ---------------------------------------------
                 #
                 # Generator loss
-                #loss_gen_G = criterion_GAN(self.disc_X(fake_IHC), valid) 
-                #loss_gen_F= criterion_GAN(self.disc_Y(fake_HE), valid)
+                loss_gen_G = criterion_GAN(self.disc_X(fake_IHC), valid) 
+                loss_gen_F= criterion_GAN(self.disc_Y(fake_HE), valid)
 
-                loss_gen_G = criterion_GAN(fake_IHC, real_IHC) 
-                loss_gen_F = criterion_GAN(fake_HE, real_HE)         
+                #loss_gen_G = criterion_GAN(fake_IHC, real_IHC) 
+                #loss_gen_F = criterion_GAN(fake_HE, real_HE)         
 
                 # ssim loss
                 ssim_IHC = ssim(fake_IHC, real_IHC)
@@ -166,7 +166,7 @@ class model(torch.nn.Module):
                 # Apply Hyperparameter 
                 loss_disc_X = self.params['disc_lambda']*loss_disc_X 
                 
-                # --------------------------- Discriminator Y -------------------------------------
+                # --------------------------- Discriminator Y ---------------------------------------------
                 # Calculate loss
                 loss_real = criterion_GAN(self.disc_Y(real_IHC), valid) # train to discriminate real images as real
                 loss_fake = criterion_GAN(self.disc_Y(fake_IHC.detach()), fake) # train to discriminate fake images as fake
@@ -177,11 +177,11 @@ class model(torch.nn.Module):
                 loss_disc_Y = self.params['disc_lambda']*loss_disc_Y 
                 
 
-                # --------------------------- Total Discriminator Loss -----------------------------
+                # --------------------------- Total Discriminator Loss ------------------------------------
 
                 loss_disc_total = (loss_disc_X + loss_disc_Y )/2
 
-                # ------------------------- Apply Weights ------------------------------------------
+                # ------------------------- Apply Weights -------------------------------------------------
                 self.disc_optimizer.zero_grad()
                 loss_disc_total.backward()
                 self.disc_optimizer.step()
@@ -194,6 +194,12 @@ class model(torch.nn.Module):
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix(loss_gen_G=loss_gen_G_total.item(), ssim = ssim_IHC.item(), MSE_gen_G = loss_gen_G.item())
             k = k+1
+            # -------------------------- saving models after each 10 epochs --------------------------------
+            if epoch % 10 == 0:
+                output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
+                epoch_name = 'gen_G_weights_'+str(epoch)
+
+                torch.save(self.gen_G.state_dict(),os.path.join(output_folder_path,epoch_name ) )
               
         return self.gen_G, self.gen_F, self.disc_X, self.disc_Y
 

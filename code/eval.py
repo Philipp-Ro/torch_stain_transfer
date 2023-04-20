@@ -36,7 +36,7 @@ class test_network():
         result['psnr_mean'] = []
         result['psnr_std'] = []
 
-        for epoch in range(self.params['num_epochs']):
+        for epoch in range(self.params['num_test_epochs']):
     
             result['epoch'].append(epoch)
             test_data = loader.stain_transfer_dataset(  img_patch= epoch,
@@ -67,11 +67,11 @@ class test_network():
 
             for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
                 fake_IHC = self.model(real_HE)
-                fake_IHC = fake_IHC+1
-                fake_IHC = fake_IHC*0.5
+                #fake_IHC = fake_IHC+1
+                #fake_IHC = fake_IHC*0.5
 
                 if i in randomlist:
-                    utils.plot_img_set(real_HE, real_IHC, fake_IHC, i,self.params,img_name)
+                    utils.plot_img_set(real_HE, fake_IHC, real_IHC, i,self.params,img_name)
             
                 
                 ssim_scores.append(ssim(fake_IHC, real_IHC).item())

@@ -65,6 +65,7 @@ class GeneratorResNet(nn.Module):
             nn.ReflectionPad2d(in_channels),
             nn.Conv2d(channels, in_channels, 2*in_channels+1),
             nn.Tanh()
+            #nn.GELU()?
         )
     
     def forward(self, x):

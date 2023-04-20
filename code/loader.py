@@ -51,8 +51,8 @@ class stain_transfer_dataset(Dataset):
 def load_image_to_tensor(idx, folder_dir, img_names,preprocess_list):
     img_path = os.path.join(folder_dir, img_names[idx])
     pil_img = Image.open(img_path)
-    img_tensor = fn.to_tensor(pil_img)
-    img_tensor, skip_token = preprocess_img(preprocess_list, img_tensor)
+    #img_tensor = fn.to_tensor(pil_img)
+    img_tensor, skip_token = preprocess_img(preprocess_list, pil_img)
   
 
     if skip_token==1:
@@ -76,23 +76,30 @@ def preprocess_img(preprocess_list, img_tensor):
     seed = np.random.randint(2147483647) 
     random.seed(seed) 
     torch.manual_seed(seed)
+    transform_list.append(transforms.ToTensor())
     # check the preprocess list and add the different transforms 
-    if "colorjitter" in preprocess_list:
-        transform_list.append(transforms.ColorJitter(brightness=(0.7,1.3), contrast = (1,3), saturation=(0.5,1.5), hue=(-0.1,0.1)))
-    if "grayscale" in preprocess_list:
-         transform_list.append(transforms.Grayscale(3))
     if "normalise" in preprocess_list:
-        mean, std = img_tensor.mean(), img_tensor.std()
+        #imagenet mean and std
+        mean = [0.485, 0.456, 0.406]  
+        std = [0.229, 0.224, 0.225]
         if mean == 0 or std == 0:
             skip_token = 1
             img_preprocessed = []
         transform_list.append(transforms.Normalize(mean, std))
+
+    if "colorjitter" in preprocess_list:
+        transform_list.append(transforms.ColorJitter(brightness=(0.7,1), contrast = (1,3), saturation=(0.7,1.3), hue=(-0.1,0.1)))
+    if "grayscale" in preprocess_list:
+         transform_list.append(transforms.Grayscale(3))
+
     # catch 2 exeptions if normalisation does not work because of std = 0 we skip the messurement
-    if not transform_list or skip_token==1:
-        img_preprocessed = img_tensor
-    else:
-        preprocess_img = transforms.Compose(transform_list)
-        img_preprocessed = preprocess_img(img_tensor)
+    preprocess_img = transforms.Compose(transform_list)
+    img_preprocessed = preprocess_img(img_tensor)
+    #if not transform_list or skip_token==1:
+    #    img_preprocessed = preprocess_img(img_tensor)
+    #else:
+    #    preprocess_img = transforms.Compose(transform_list)
+    #    img_preprocessed = preprocess_img(img_tensor)
 
     return img_preprocessed, skip_token
 
