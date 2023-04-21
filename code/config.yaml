@@ -10,8 +10,8 @@ num_epochs : 5
 decay_epoch : 5
 batch_size : 1
 # put "normalise" and " grayscale"
-preprocess_HE : ["normalise","colorjitter"]
-preprocess_IHC : ["normalise","colorjitter"]
+preprocess_HE : []
+preprocess_IHC : []
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
