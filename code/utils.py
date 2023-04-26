@@ -2,6 +2,7 @@ import yaml
 import matplotlib.pyplot as plt
 import numpy as np 
 import os
+from torchvision import transforms
 
 def get_config_from_yaml(config_path):
     with open(file=config_path, mode='r') as param_file:
@@ -48,3 +49,11 @@ def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name):
     plt.title('real_IHC')
 
     fig.savefig(os.path.join(os.path.join(params['output_path'],params['output_folder']),fig_name))
+
+
+def denomalise(mean,std,img):
+    unorm = transforms.Normalize(mean=[-mean[0]/std[0], -mean[1]/std[1], -mean[2]/std[2]],
+                             std=[1/std[0], 1/std[1], 1/std[2]])
+    
+    denomalised_img = unorm(img)
+    return denomalised_img

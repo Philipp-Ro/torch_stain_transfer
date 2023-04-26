@@ -9,15 +9,14 @@ import numpy as np
 import torchvision.transforms.functional as fn
 
 class stain_transfer_dataset(Dataset):
-    def __init__(self,img_patch, HE_img_dir,IHC_img_dir,preprocess_HE,preprocess_IHC, img_size=(1024,1024)):
+    def __init__(self,img_patch, HE_img_dir,IHC_img_dir,params):
         self.HE_img_dir = HE_img_dir
         self.IHC_img_dir = IHC_img_dir
         self.img_names =  os.listdir(self.HE_img_dir)
-        self.preprocess_HE = preprocess_HE
-        self.preprocess_IHC = preprocess_IHC
+        self.params = params
 
-        if img_size[0]==img_size[1]:
-            self.img_size = img_size[0]
+        if params['img_size'][0]==params['img_size'][1]:
+            self.img_size = params['img_size'][0]
         else:
             print('IMAGE SIZE MUST BE SQUARE')
 
@@ -31,8 +30,8 @@ class stain_transfer_dataset(Dataset):
 
 
     def __getitem__(self, idx):
-        HE_img= load_image_to_tensor(idx= idx, folder_dir=self.HE_img_dir, img_names=self.img_names, preprocess_list=self.preprocess_HE, img_class='HE')
-        IHC_img = load_image_to_tensor(idx= idx, folder_dir=self.IHC_img_dir, img_names=self.img_names, preprocess_list=self.preprocess_IHC, img_class='IHC')
+        HE_img= load_image_to_tensor(self,idx= idx, folder_dir=self.HE_img_dir, img_names=self.img_names, preprocess_list=self.params['preprocess_HE'], img_class='HE')
+        IHC_img = load_image_to_tensor(self,idx= idx, folder_dir=self.IHC_img_dir, img_names=self.img_names, preprocess_list=self.params['preprocess_IHC'], img_class='IHC')
 
         HE_img = HE_img.cuda()
         IHC_img = IHC_img.cuda()
@@ -47,11 +46,11 @@ class stain_transfer_dataset(Dataset):
         return HE_tensor,  IHC_tensor, self.img_names[idx]
 
 
-def load_image_to_tensor(idx, folder_dir, img_names, preprocess_list, img_class):
+def load_image_to_tensor(self,idx, folder_dir, img_names, preprocess_list, img_class):
     img_path = os.path.join(folder_dir, img_names[idx])
     pil_img = Image.open(img_path)
     #img_tensor = fn.to_tensor(pil_img)
-    img_tensor, skip_token = preprocess_img(preprocess_list, pil_img, img_class)
+    img_tensor, skip_token = preprocess_img(self,preprocess_list, pil_img, img_class)
   
     if skip_token==1:
         img_path = os.path.join(folder_dir, img_names[idx+1])
@@ -69,7 +68,7 @@ def reshape_img(img, img_size, img_patch):
     img = img[img_patch,:,:,:]
     return img
 
-def preprocess_img(preprocess_list, img_tensor, img_class):
+def preprocess_img(self,preprocess_list, img_tensor, img_class):
 
     transform_list = []
     skip_token = 0
@@ -78,28 +77,27 @@ def preprocess_img(preprocess_list, img_tensor, img_class):
     torch.manual_seed(seed)
     transform_list.append(transforms.ToTensor())
     # check the preprocess list and add the different transforms 
-    if "normalise_img_net" in preprocess_list:
-        #imagenet mean and std
-        mean = [0.485, 0.456, 0.406] 
-        std = [0.229, 0.224, 0.225]
+    if "normalise" in preprocess_list:
+        if self.params['normalise_token'] == 'img_net':
+            mean = self.params['mean_img_net']
+            std = self.params['std_img_net']
+        else:
 
-        transform_list.append(transforms.Normalize(mean, std))
+            if img_class == 'HE':
+            # the mean and std where calculated from the train data of the bci data set 
+            # to gain specific mean and std for immunohistological images 
+                mean = self.params['mean_HE']
+                std = self.params['std_HE']
 
-    elif "normalise_bci_data" in preprocess_list and img_class == 'HE':
-        # the mean and std where calculated from the train data of the bci data set 
-        # to gain specific mean and std for immunohistological images 
-        mean = [0.6374934061876859, 0.54221270388668, 0.6263932794073621]
-        std = [0.08630574808474256, 0.09923751557584395, 0.07704577263561006]
+                transform_list.append(transforms.Normalize(mean, std))
 
-        transform_list.append(transforms.Normalize(mean, std))
+            if  img_class == 'IHC':
+            # the mean and std where calculated from the train data of the bci data set 
+            # to gain specific mean and std for immunohistological images 
+                mean = self.params['mean_IHC']
+                std = self.params['std_IHC']
 
-    elif "normalise_bci_data" in preprocess_list and img_class == 'IHC':
-        # the mean and std where calculated from the train data of the bci data set 
-        # to gain specific mean and std for immunohistological images 
-        mean = [0.7687480146058773, 0.7460195554334789, 0.7200858060498716]
-        std = [0.05067490897275364, 0.05804296102376095, 0.06596264508250156]
-
-        transform_list.append(transforms.Normalize(mean, std))
+                transform_list.append(transforms.Normalize(mean, std))
 
     if "colorjitter" in preprocess_list:
         transform_list.append(transforms.ColorJitter(brightness=(0.7,1), contrast = (1,3), saturation=(0.7,1.3), hue=(-0.1,0.1)))

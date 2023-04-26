@@ -40,12 +40,9 @@ class test_network():
     
             result['epoch'].append(epoch)
             test_data = loader.stain_transfer_dataset(  img_patch= epoch,
-                                                        preprocess_HE = self.params['preprocess_HE'],
-                                                        preprocess_IHC = self.params['preprocess_IHC'],
+                                                        params= self.params,
                                                         HE_img_dir = self.HE_img_dir,
                                                         IHC_img_dir = self.IHC_img_dir,
-                                                        img_size= self.params['img_size'],
-
                                                         )
             
             test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
@@ -67,15 +64,17 @@ class test_network():
 
             for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
                 fake_IHC = self.model(real_HE)
-                #fake_IHC = fake_IHC+1
-                #fake_IHC = fake_IHC*0.5
+                unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
+                unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
+                unnorm_real_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],real_HE)
 
                 if i in randomlist:
-                    utils.plot_img_set(real_HE, fake_IHC, real_IHC, i,self.params,img_name)
+                  
+                    utils.plot_img_set(real_HE=unnorm_real_HE, fake_IHC=unnorm_fake_IHC, real_IHC=unnorm_real_IHC, i=i,params = self.params,img_name = img_name)
             
                 
-                ssim_scores.append(ssim(fake_IHC, real_IHC).item())
-                psnr_scores.append(psnr(fake_IHC, real_IHC).item())
+                ssim_scores.append(ssim(unnorm_fake_IHC, unnorm_real_IHC).item())
+                psnr_scores.append(psnr(unnorm_fake_IHC, unnorm_real_IHC).item())
                 
 
             result['ssim_mean'].append(np.mean(ssim_scores))

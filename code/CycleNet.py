@@ -46,7 +46,7 @@ class model(torch.nn.Module):
         psnr = PeakSignalNoiseRatio().cuda()
         k =0
         for epoch in range(self.params['num_epochs']):
-            print(k)    
+                
             # the dataset is set up he coppes images out of the original image i the set size 
             # each epoch he takes a new slice of the original image 
             # recomended sizes [64,64] / [128,128] / [256, 256]  
@@ -58,11 +58,9 @@ class model(torch.nn.Module):
                 k=1
 
             train_data = loader.stain_transfer_dataset( img_patch=  k,
-                                                        preprocess_HE = self.params['preprocess_HE'],
-                                                        preprocess_IHC = self.params['preprocess_IHC'],
+                                                        params= self.params,
                                                         HE_img_dir = HE_img_dir,
-                                                        IHC_img_dir = IHC_img_dir,
-                                                        img_size= self.params['img_size'],
+                                                        IHC_img_dir = IHC_img_dir,                                                     
                                            )
             
             # get dataloader
@@ -89,10 +87,9 @@ class model(torch.nn.Module):
                 #
                 # the output layer of the conv and the trans model is a nn.Tanh layer:
                 # output shape [1, in_channels, img_size, img_size]
-                # output range [-1, 1]
+                
 
                 fake_IHC = self.gen_G(real_HE) 
-
                 fake_HE = self.gen_F(real_IHC)
 
                 # --------------------------- Calculate losses ---------------------------------------------
@@ -105,13 +102,18 @@ class model(torch.nn.Module):
                 #loss_gen_F = criterion_GAN(fake_HE, real_HE)         
 
                 # ssim loss
-                ssim_IHC = ssim(fake_IHC, real_IHC)
-                ssim_HE = ssim(fake_HE, real_HE)
+                unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
+                unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
+                unnorm_fake_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],fake_HE)
+                unnorm_real_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],real_HE)
+
+                ssim_IHC = ssim(unnorm_fake_IHC, unnorm_real_IHC)
+                ssim_HE = ssim(unnorm_fake_HE, unnorm_real_HE)
                 loss_ssim = ((1-ssim_IHC) + (1-ssim_HE))/2
 
                 # psnr loss 
-                psnr_IHC = psnr(fake_IHC, real_IHC)
-                psnr_HE = psnr(fake_HE, real_HE)
+                psnr_IHC = psnr(unnorm_fake_IHC, unnorm_real_IHC)
+                psnr_HE = psnr(unnorm_fake_HE, unnorm_real_HE)
                 loss_psnr = (psnr_IHC + psnr_HE)/2
 
                 # Identity Loss 
