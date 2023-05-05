@@ -8,7 +8,7 @@ import numpy as np
 import random
 import utils
 import conv_models
-import transformer_models
+import trans_models
 
 class test_network():
     def __init__(self,params):

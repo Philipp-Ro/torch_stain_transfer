@@ -271,8 +271,8 @@ class Discriminator(nn.Module):
             
         # Getting the classification token only
         out = out[:, 0]
+       
         # apply mlp
         out = self.mlp(out)
-
         
-        return 
+        return out

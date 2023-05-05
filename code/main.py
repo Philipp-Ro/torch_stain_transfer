@@ -2,11 +2,12 @@ import torch
 import utils
 import conv_models
 import os , itertools
-import CycleNet
+import Cycle_Gan_Net
 import eval
 import trans_models
+import Gan_Net
 # ------------------------------------------------------------------------------------------
-# load config and intialize Generators and Discriminators
+# load config and intialize Generators 
 # ------------------------------------------------------------------------------------------
 
 params = utils.get_config_from_yaml('C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/code/config.yaml')
@@ -28,67 +29,81 @@ if params['gen_architecture'] == 'conv':
                                         U_net_step_num = params['U_net_step_num']
                                         )
     
-
-    disc_X = conv_models.Discriminator(in_channels= in_channels)
-    disc_Y = conv_models.Discriminator(in_channels= in_channels)
-
     gen_G = gen_G.cuda()
     gen_F = gen_F.cuda()
+
+    gen_G.apply(Cycle_Gan_Net.weights_init_normal)
+    gen_F.apply(Cycle_Gan_Net.weights_init_normal)
+
+
+
+if params['gen_architecture']== 'trans':
+    gen_G = trans_models.Generator(
+                                      chw = [params['in_channels']]+params['img_size'], 
+                                      patch_size = params['patch_size_gen'],
+                                      num_heads = params['num_heads_gen'], 
+                                      num_blocks = params['num_blocks_gen'])
+    
+    
+    gen_F =  trans_models.Generator(
+                                      chw = [params['in_channels']]+params['img_size'], 
+                                      patch_size = params['patch_size_gen'],
+                                      num_heads = params['num_heads_gen'], 
+                                      num_blocks = params['num_blocks_gen'])
+    
+    gen_G = gen_G.cuda()
+    gen_F = gen_F.cuda()
+
+
+# ------------------------------------------------------------------------------------------
+# load config and intialize Discriminators
+# ------------------------------------------------------------------------------------------ 
+if params['disc_architecture'] == 'conv':
+    disc_X = conv_models.Discriminator(in_channels= in_channels)
+    disc_Y = conv_models.Discriminator(in_channels= in_channels)
 
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()
 
-    gen_G.apply(CycleNet.weights_init_normal)
-    gen_F.apply(CycleNet.weights_init_normal)
-    disc_X.apply(CycleNet.weights_init_normal)
-    disc_Y.apply(CycleNet.weights_init_normal)
+    disc_X.apply(Cycle_Gan_Net.weights_init_normal)
+    disc_Y.apply(Cycle_Gan_Net.weights_init_normal)
 
-
-if params['gen_architecture']== 'trans':
-    
-    gen_G = trans_models.Generator(
-                                      chw = [3,256,256], 
-                                      patch_size = [32, 32],
-                                      num_heads = 2, 
-                                      num_blocks = 2)
-    
-    
-    gen_F =  trans_models.Generator(
-                                      chw = [3,256,256], 
-                                      patch_size = [32, 32],
-                                      num_heads = 2, 
-                                      num_blocks = 2)
-    
+if params['disc_architecture']== 'trans':
     disc_X =  trans_models.Discriminator(
-                                      chw = [3,256,256], 
-                                      patch_size = [32, 32],
-                                      num_heads = 2, 
-                                      num_blocks = 2)
+                                      chw = [params['in_channels']]+params['img_size'], 
+                                      patch_size = params['patch_size_disc'],
+                                      num_heads = params['num_heads_disc'], 
+                                      num_blocks = params['num_blocks_disc'])
     
     disc_Y =  trans_models.Discriminator(
-                                      chw = [3,256,256], 
-                                      patch_size = [32, 32],
-                                      num_heads = 2, 
-                                      num_blocks = 2)
-
-    gen_G = gen_G.cuda()
-    gen_F = gen_F.cuda()
-
+                                      chw = [params['in_channels']]+params['img_size'], 
+                                      patch_size = params['patch_size_disc'],
+                                      num_heads = params['num_heads_disc'], 
+                                      num_blocks = params['num_blocks_disc'])
+    
     disc_X = disc_X.cuda()
-    disc_Y = disc_Y.cuda()  
+    disc_Y = disc_Y.cuda() 
+
 
 # ------------------------------------------------------------------------------------------
-# intitialise optimisers and Cyclenet
+# intitialise optimisers and frame architecture 
 # ------------------------------------------------------------------------------------------
 gen_optimizer = torch.optim.Adam(itertools.chain(gen_G.parameters(), gen_F.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
 
 disc_optimizer = torch.optim.Adam(itertools.chain(disc_X.parameters(), disc_Y.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
 
 
-model = CycleNet.model(params,gen_G, gen_F,disc_X, disc_Y, disc_optimizer, gen_optimizer)
-
+if params['frame_architecture']== 'cycleGan':
+    model = Cycle_Gan_Net.model(params,gen_G, gen_F,disc_X, disc_Y, disc_optimizer, gen_optimizer)
 # --------------------------- Train Network ------------------------------------------------
-gen_G, gen_F, disc_X, disc_Y = model.fit()
+    gen_G, gen_F, disc_X, disc_Y = model.fit()
+
+
+if params['frame_architecture']== 'Gan':
+    model = Gan_Net.model(params,gen_G,disc_X, disc_optimizer, gen_optimizer)
+# --------------------------- Train Network ------------------------------------------------
+    gen, disc = model.fit()
+
 
 # ------------------------------------------------------------------------------------------
 # save the trained model 

@@ -37,9 +37,13 @@ model_name : 'gen_G_weights_final.pth'
 #----------------------------------------------------------------------------------------------
 # Model selection
 #----------------------------------------------------------------------------------------------
-# set Generator architecture:
+# set Generator architecture and Discriminator architecture
 # options are: 'trans' or 'conv'
 gen_architecture : 'trans'
+disc_architecture: 'trans'
+# set frame architecture 
+# otions are: 'cycleGan' or 'Gan'
+frame_architecture: 'Gan'
 
 # set CycleGAN LR and optimisers
 learn_rate_disc : 0.0002
@@ -67,10 +71,13 @@ U_net_step_num : 2
 
 
 # ---------------------------- 'TRANS' ARCHITECTURE --------------------------------------------
-nhead : 4
-patch_size : 32
-num_layers : 4
-dropout_embedding : 0.1    
+num_heads_gen : 4
+patch_size_gen : [32,32]
+num_blocks_gen : 4   
+
+num_heads_disc : 4
+patch_size_disc : [32,32]
+num_blocks_disc : 4 
 
 
 #-----------------------------------------------------------------------------------------------

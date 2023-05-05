@@ -11,26 +11,23 @@ from torchmetrics import PeakSignalNoiseRatio
 #from time import Timer
 from tqdm import tqdm
 
+
 class model(torch.nn.Module):
-    def __init__(self,params, generator_G, generator_F, discriminator_X, discriminator_Y, disc_optimizer, gen_optimizer):
+    def __init__(self,params, generator, discriminator, disc_optimizer, gen_optimizer):
         super(model, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
-        # Initialize CycleNet
+        # Initialize Gan_Net
         # -----------------------------------------------------------------------------------------------------------------
-        # gen_G transfers from domain X -> Y
-        # gen_F transfers from domain Y -> X
+        # gen transfers from domain X -> Y
         #
-        # disc_X distinguishes between real and fake in the X domain 
-        # disc_Y distinguishes between real and fake in the Y domain 
+        # disc distinguishes between real and fake in the Y domain 
         #
         # in our case:
         # Domain X = HE
         # Domain Y = IHC
-        # self.timer = Timer()
-        self.gen_G = generator_G
-        self.gen_F = generator_F
-        self.disc_X = discriminator_X
-        self.disc_Y = discriminator_Y
+
+        self.gen = generator
+        self.disc = discriminator
         self.disc_optimizer = disc_optimizer
         self.gen_optimizer = gen_optimizer
         self.params = params
@@ -40,8 +37,6 @@ class model(torch.nn.Module):
         Tensor = torch.cuda.FloatTensor
         criterion_GAN = torch.nn.MSELoss().cuda()
         #criterion_GAN  = torch.nn.L1Loss().cuda()
-        criterion_cycle = torch.nn.L1Loss().cuda()
-        criterion_identity = torch.nn.L1Loss().cuda()
         ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
         psnr = PeakSignalNoiseRatio().cuda()
         k =0
@@ -80,131 +75,87 @@ class model(torch.nn.Module):
                 fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
                 
                 # -----------------------------------------------------------------------------------------
-                # Train Generators
+                # Train Generator
                 # -----------------------------------------------------------------------------------------
                 
-                # ------------ Generate fake_IHC and fake_HE with gen_G and gen_F -------------------------
+                # ------------ Generate fake_IHC with gen -------------------------------------------------
                 #
                 # input shape [n, in_channels, img_size, img_size]
                 # the output layer of the conv and the trans model is a nn.Tanh layer:
                 # output shape [1, in_channels, img_size, img_size]
                 
 
-                fake_IHC = self.gen_G(real_HE) 
-                fake_HE = self.gen_F(real_IHC)
+                fake_IHC = self.gen(real_HE) 
 
                 # --------------------------- Calculate losses ---------------------------------------------
                 #
                 # Generator loss
-                loss_gen_G = criterion_GAN(self.disc_X(fake_IHC), valid) 
-                loss_gen_F= criterion_GAN(self.disc_Y(fake_HE), valid)
-
-                #loss_gen_G = criterion_GAN(fake_IHC, real_IHC) 
-                #loss_gen_F = criterion_GAN(fake_HE, real_HE)         
-
+                loss_gen = criterion_GAN(self.disc(fake_IHC), valid) 
+       
                 # ssim loss
                 unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
                 unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
-                unnorm_fake_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],fake_HE)
-                unnorm_real_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],real_HE)
 
                 ssim_IHC = ssim(unnorm_fake_IHC, unnorm_real_IHC)
-                ssim_HE = ssim(unnorm_fake_HE, unnorm_real_HE)
-                loss_ssim = ((1-ssim_IHC) + (1-ssim_HE))/2
+                loss_ssim = 1-ssim_IHC
 
                 # psnr loss 
                 psnr_IHC = psnr(unnorm_fake_IHC, unnorm_real_IHC)
-                psnr_HE = psnr(unnorm_fake_HE, unnorm_real_HE)
-                loss_psnr = (psnr_IHC + psnr_HE)/2
+                loss_psnr = psnr_IHC 
 
-                # Identity Loss 
-                loss_id_HE = criterion_identity(self.gen_F(real_IHC), real_IHC) 
-                loss_id_IHC = criterion_identity(self.gen_G(real_HE), real_HE)
-                                                                             
-                # Cycle Loss
-                cycled_IHC = self.gen_G(fake_HE) 
-                loss_cycle_G = criterion_cycle(cycled_IHC, real_IHC) 
-
-                cycled_HE = self.gen_F(fake_IHC)
-                loss_cycle_F = criterion_cycle(cycled_HE, real_IHC)
-                
-                # ------------------------- Apply Hyperparameters ---------------------------------
-                loss_gen_G = self.params['generator_lambda']*loss_gen_G
-                loss_gen_F = self.params['generator_lambda']*loss_gen_F
-
-                loss_cycle_G = self.params['cycle_lambda']*loss_cycle_G
-                loss_cycle_F = self.params['cycle_lambda']*loss_cycle_F
-
-                loss_id_HE = self.params['identity_lambda']*loss_id_HE
-                loss_id_IHC = self.params['identity_lambda']*loss_id_IHC
+                # ------------------------- Apply Hyperparameters ------------------------------------------
+                loss_gen = self.params['generator_lambda']*loss_gen
 
                 loss_ssim = (self.params['ssim_lambda']*loss_ssim)
                 loss_psnr = (self.params['psnr_lambda']*loss_psnr)
 
-                # ------------------ Combine scaled losses for gen_G and gen_F ---------------------
-                loss_gen_G_total = loss_gen_G + loss_cycle_G + loss_id_IHC + loss_ssim + loss_psnr
-                loss_gen_F_total = loss_gen_F + loss_cycle_F + loss_id_HE + loss_ssim + loss_psnr
+                # ------------------ Combine scaled losses --------------------------------------------------
+                loss_gen_total = loss_gen + loss_ssim + loss_psnr
 
-                loss_gen_total = loss_gen_G_total + loss_gen_F_total
-                
-                # ------------------------- Apply Weights ------------------------------------------
-
+                # ------------------------- Apply Weights ---------------------------------------------------
                 self.gen_optimizer.zero_grad()
                 loss_gen_total.backward()
                 self.gen_optimizer.step()
 
-                
                 # ---------------------------------------------------------------------------------
                 # Train Discriminators
                 # ---------------------------------------------------------------------------------
 
-                # --------------------------- Discriminator X -------------------------------------
+                # --------------------------- Discriminator ---------------------------------------
                 # Calculate loss
-            
-                loss_real = criterion_GAN(self.disc_X(real_HE), valid) # train to discriminate real images as real
-                loss_fake = criterion_GAN(self.disc_X(fake_HE.detach()), fake) # train to discriminate fake images as fake
+        
+                loss_real = criterion_GAN(self.disc(real_IHC), valid) # train to discriminate real images as real
+                loss_fake = criterion_GAN(self.disc(fake_IHC.detach()), fake) # train to discriminate fake images as fake
                 
-                loss_disc_X = (loss_real + loss_fake)/2
-
-                # Apply Hyperparameter 
-                loss_disc_X = self.params['disc_lambda']*loss_disc_X 
-                
-                # --------------------------- Discriminator Y ---------------------------------------------
-                # Calculate loss
-                loss_real = criterion_GAN(self.disc_Y(real_IHC), valid) # train to discriminate real images as real
-                loss_fake = criterion_GAN(self.disc_Y(fake_IHC.detach()), fake) # train to discriminate fake images as fake
-                
-                loss_disc_Y = (loss_real + loss_fake)/2
+                loss_disc = (loss_real + loss_fake)/2
 
                 # Apply Hyperparameter
-                loss_disc_Y = self.params['disc_lambda']*loss_disc_Y 
+                loss_disc = self.params['disc_lambda']*loss_disc 
                 
-
                 # --------------------------- Total Discriminator Loss ------------------------------------
-
-                loss_disc_total = (loss_disc_X + loss_disc_Y )/2
+                loss_disc_total = loss_disc
 
                 # ------------------------- Apply Weights -------------------------------------------------
                 self.disc_optimizer.zero_grad()
                 loss_disc_total.backward()
                 self.disc_optimizer.step()
-              
+
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
-                    train_loop.set_postfix(loss_gen_G=loss_gen_G_total.item(), ssim = ssim_IHC.item(), MSE_gen_G = loss_gen_G.item())
+                    train_loop.set_postfix(loss_gen=loss_gen_total.item(), ssim = ssim_IHC.item(), MSE_gen = loss_gen.item())
             k = k+1
             # -------------------------- saving models after each 10 epochs --------------------------------
             if epoch % 10 == 0:
                 output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
                 epoch_name = 'gen_G_weights_'+str(epoch)
 
-                torch.save(self.gen_G.state_dict(),os.path.join(output_folder_path,epoch_name ) )
+                torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
               
-        return self.gen_G, self.gen_F, self.disc_X, self.disc_Y
+        return self.gen, self.disc
 
 
 
@@ -217,4 +168,6 @@ def weights_init_normal(m):
         elif classname.find('InstanceNorm2d') != -1:
             torch.nn.init.normal_(m.weight.data, 1.0, 0.02) # reset BatchNorm2d's weight(tensor) with Gaussian Distribution
             torch.nn.init.constant_(m.bias.data, 0.0) # reset BatchNorm2d's bias(tensor) with Constant(0)
+                
+
 
