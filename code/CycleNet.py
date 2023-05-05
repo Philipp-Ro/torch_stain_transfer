@@ -85,6 +85,7 @@ class model(torch.nn.Module):
                 
                 # ------------ Generate fake_IHC and fake_HE with gen_G and gen_F -------------------------
                 #
+                # input shape [n, in_channels, img_size, img_size]
                 # the output layer of the conv and the trans model is a nn.Tanh layer:
                 # output shape [1, in_channels, img_size, img_size]
                 

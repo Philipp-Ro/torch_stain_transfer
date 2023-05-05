@@ -1,4 +1,7 @@
 import torch.nn as nn
+#-----------------------------------------------------------------------------------------------
+# RESIDUAL BLOCK
+#-----------------------------------------------------------------------------------------------
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels):
         super(ResidualBlock, self).__init__()
@@ -14,10 +17,13 @@ class ResidualBlock(nn.Module):
     
     def forward(self, x):
         return x + self.block(x)
-
-class GeneratorResNet(nn.Module):
+    
+#-----------------------------------------------------------------------------------------------
+# GENERATOR MODEL
+#-----------------------------------------------------------------------------------------------
+class Generator(nn.Module):
     def __init__(self, in_channels,U_net_filter_groth,U_net_step_num, num_residual_blocks):
-        super(GeneratorResNet, self).__init__()
+        super(Generator, self).__init__()
 
         
         # Inital Convolution:  3 * [img_height] * [img_width] ----> 64 * [img_height] * [img_width]
@@ -71,17 +77,16 @@ class GeneratorResNet(nn.Module):
     def forward(self, x):
        
         x = self.conv(x)
-        
         x = self.down(x)
-        
         x = self.trans(x)
-        
         x = self.up(x)
-        
         x = self.out(x)
         
         return x
-
+    
+#-----------------------------------------------------------------------------------------------
+# DISCRIMINATOR
+#-----------------------------------------------------------------------------------------------
 class Discriminator(nn.Module):
     def __init__(self, in_channels):
         super(Discriminator, self).__init__()

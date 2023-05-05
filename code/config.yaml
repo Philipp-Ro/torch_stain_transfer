@@ -31,7 +31,7 @@ preprocess_IHC : ['normalise']
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_03'
+output_folder : 'Test_099'
 model_name : 'gen_G_weights_final.pth'
 
 #----------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ model_name : 'gen_G_weights_final.pth'
 #----------------------------------------------------------------------------------------------
 # set Generator architecture:
 # options are: 'trans' or 'conv'
-gen_architecture : 'conv'
+gen_architecture : 'trans'
 
 # set CycleGAN LR and optimisers
 learn_rate_disc : 0.0002

@@ -3,9 +3,8 @@ import utils
 import conv_models
 import os , itertools
 import CycleNet
-import transformer_models
 import eval
-
+import trans_models
 # ------------------------------------------------------------------------------------------
 # load config and intialize Generators and Discriminators
 # ------------------------------------------------------------------------------------------
@@ -17,13 +16,13 @@ in_channels = 3
 
 if params['gen_architecture'] == 'conv':
     
-    gen_G = conv_models.GeneratorResNet(in_channels= params['in_channels'],
+    gen_G = conv_models.Generator(in_channels= params['in_channels'],
                                         num_residual_blocks = params['num_resnet'],
                                         U_net_filter_groth = params['U_net_filter_groth'],
                                         U_net_step_num = params['U_net_step_num']
                                         )
     
-    gen_F = conv_models.GeneratorResNet(in_channels= params['in_channels'], 
+    gen_F = conv_models.Generator(in_channels= params['in_channels'], 
                                         num_residual_blocks = params['num_resnet'],
                                         U_net_filter_groth = params['U_net_filter_groth'],
                                         U_net_step_num = params['U_net_step_num']
@@ -47,27 +46,30 @@ if params['gen_architecture'] == 'conv':
 
 if params['gen_architecture']== 'trans':
     
-    gen_G = transformer_models.Generator(   img_size= params['img_size'][0],
-                                            embedding_dim=0,
-                                            patch_size=params['patch_size'],
-                                            in_channels=in_channels,
-                                            dropout_embedding=params['dropout_embedding'],
-                                            nhead= params['nhead'],
-                                            num_layers=params['num_layers']
-                                            )
-    
-    gen_F = transformer_models.Generator(   img_size= params['img_size'][0],
-                                            embedding_dim=0,
-                                            patch_size=params['patch_size'],
-                                            in_channels=in_channels,
-                                            dropout_embedding=params['dropout_embedding'],
-                                            nhead= params['nhead'],
-                                            num_layers=params['num_layers']
-                                            )
+    gen_G = trans_models.Generator(
+                                      chw = [3,256,256], 
+                                      patch_size = [32, 32],
+                                      num_heads = 2, 
+                                      num_blocks = 2)
     
     
-    disc_X = conv_models.Discriminator(in_channels= params['in_channels'])
-    disc_Y = conv_models.Discriminator(in_channels= params['in_channels'])
+    gen_F =  trans_models.Generator(
+                                      chw = [3,256,256], 
+                                      patch_size = [32, 32],
+                                      num_heads = 2, 
+                                      num_blocks = 2)
+    
+    disc_X =  trans_models.Discriminator(
+                                      chw = [3,256,256], 
+                                      patch_size = [32, 32],
+                                      num_heads = 2, 
+                                      num_blocks = 2)
+    
+    disc_Y =  trans_models.Discriminator(
+                                      chw = [3,256,256], 
+                                      patch_size = [32, 32],
+                                      num_heads = 2, 
+                                      num_blocks = 2)
 
     gen_G = gen_G.cuda()
     gen_F = gen_F.cuda()
@@ -101,6 +103,5 @@ torch.save(gen_G.state_dict(), model_path)
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-
 model_testing = eval.test_network(params)
 model_testing.fit()
