@@ -203,7 +203,7 @@ class Generator (nn.Module):
 # https://medium.com/mlearning-ai/vision-transformers-from-scratch-pytorch-a-step-by-step-guide-96c3313c2e0c   
 
 class Discriminator(nn.Module):
-    def __init__(self, chw, patch_size, num_heads, num_blocks, out_d=1):
+    def __init__(self, chw, patch_size, num_heads, num_blocks, out_d=2):
         # Super constructor
         super(Discriminator, self).__init__()
 # inputs :
@@ -243,8 +243,7 @@ class Discriminator(nn.Module):
         
         # 5) Classification MLPk
         self.mlp = nn.Sequential(
-            nn.Linear(self.embedding_dim, out_d),
-            nn.Softmax(dim=-1)
+            nn.Linear(self.embedding_dim, self.embedding_dim),
         )
 
     def forward(self, x):
@@ -271,8 +270,9 @@ class Discriminator(nn.Module):
             
         # Getting the classification token only
         out = out[:, 0]
+        print(out.shape)
        
         # apply mlp
         out = self.mlp(out)
-        
+        print(out.shape)
         return out

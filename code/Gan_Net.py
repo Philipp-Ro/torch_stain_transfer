@@ -35,10 +35,14 @@ class model(torch.nn.Module):
 
     def fit(self):
         Tensor = torch.cuda.FloatTensor
+        #-------------------- loss functions and metrics ------------------------------
+        #  check out https://neptune.ai/blog/gan-loss-functions
         criterion_GAN = torch.nn.MSELoss().cuda()
         #criterion_GAN  = torch.nn.L1Loss().cuda()
         ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
         psnr = PeakSignalNoiseRatio().cuda()
+
+
         k =0
         for epoch in range(self.params['num_epochs']):
                 
@@ -88,9 +92,11 @@ class model(torch.nn.Module):
                 fake_IHC = self.gen(real_HE) 
 
                 # --------------------------- Calculate losses ---------------------------------------------
-                #
+                # https://neptune.ai/blog/gan-loss-functions
                 # Generator loss
+
                 loss_gen = criterion_GAN(self.disc(fake_IHC), valid) 
+                # wgan /cgan? 
        
                 # ssim loss
                 unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)

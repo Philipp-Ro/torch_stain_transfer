@@ -95,21 +95,18 @@ class test_network():
 
 def initialize_gen_model(params):
     if params['gen_architecture'] == 'conv':
-        gen_test = conv_models.GeneratorResNet( in_channels= params['in_channels'],
+        gen_test = conv_models.Generator( in_channels= params['in_channels'],
                                                 num_residual_blocks = params['num_resnet'],
                                                 U_net_filter_groth = params['U_net_filter_groth'],
                                                 U_net_step_num = params['U_net_step_num']
                                             )
         
     if params['gen_architecture'] == 'trans':
-        gen_test = transformer_models.Generator(    img_size= params['img_size'][0],
-                                                    embedding_dim=0,
-                                                    patch_size=params['patch_size'],
-                                                    in_channels=params['in_channels'],
-                                                    dropout_embedding=params['dropout_embedding'],
-                                                    nhead= params['nhead'],
-                                                    num_layers=params['num_layers']
-                                            )
+        gen_test = trans_models.Generator(
+                                      chw = [params['in_channels']]+params['img_size'], 
+                                      patch_size = params['patch_size_gen'],
+                                      num_heads = params['num_heads_gen'], 
+                                      num_blocks = params['num_blocks_gen'])
     gen_test = gen_test.cuda()
 
     return gen_test

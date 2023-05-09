@@ -12,9 +12,6 @@ import Gan_Net
 
 params = utils.get_config_from_yaml('C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/code/config.yaml')
 
-
-in_channels = 3
-
 if params['gen_architecture'] == 'conv':
     
     gen_G = conv_models.Generator(in_channels= params['in_channels'],
@@ -59,8 +56,8 @@ if params['gen_architecture']== 'trans':
 # load config and intialize Discriminators
 # ------------------------------------------------------------------------------------------ 
 if params['disc_architecture'] == 'conv':
-    disc_X = conv_models.Discriminator(in_channels= in_channels)
-    disc_Y = conv_models.Discriminator(in_channels= in_channels)
+    disc_X = conv_models.Discriminator(in_channels= params['in_channels'])
+    disc_Y = conv_models.Discriminator(in_channels= params['in_channels'])
 
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()
@@ -86,20 +83,26 @@ if params['disc_architecture']== 'trans':
 
 
 # ------------------------------------------------------------------------------------------
-# intitialise optimisers and frame architecture 
+# intitialise frame model
 # ------------------------------------------------------------------------------------------
-gen_optimizer = torch.optim.Adam(itertools.chain(gen_G.parameters(), gen_F.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
-
-disc_optimizer = torch.optim.Adam(itertools.chain(disc_X.parameters(), disc_Y.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
-
 
 if params['frame_architecture']== 'cycleGan':
+# --------------------------- intitialise optimisers ---------------------------------------
+    gen_optimizer = torch.optim.Adam(itertools.chain(gen_G.parameters(), gen_F.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
+    disc_optimizer = torch.optim.Adam(itertools.chain(disc_X.parameters(), disc_Y.parameters()), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
+
+# --------------------------- intitialise cycle_Gan ----------------------------------------
     model = Cycle_Gan_Net.model(params,gen_G, gen_F,disc_X, disc_Y, disc_optimizer, gen_optimizer)
 # --------------------------- Train Network ------------------------------------------------
     gen_G, gen_F, disc_X, disc_Y = model.fit()
 
 
 if params['frame_architecture']== 'Gan':
+# --------------------------- intitialise optimisers ---------------------------------------
+    gen_optimizer = torch.optim.Adam(gen_G.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
+    disc_optimizer = torch.optim.Adam(disc_X.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
+    
+# --------------------------- intitialise Gan ----------------------------------------------
     model = Gan_Net.model(params,gen_G,disc_X, disc_optimizer, gen_optimizer)
 # --------------------------- Train Network ------------------------------------------------
     gen, disc = model.fit()
