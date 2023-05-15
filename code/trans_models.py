@@ -243,7 +243,7 @@ class Discriminator(nn.Module):
         
         # 5) Classification MLPk
         self.mlp = nn.Sequential(
-            nn.Linear(self.embedding_dim, self.embedding_dim),
+            nn.Linear(self.embedding_dim, 1),
         )
 
     def forward(self, x):
@@ -270,9 +270,20 @@ class Discriminator(nn.Module):
             
         # Getting the classification token only
         out = out[:, 0]
-        print(out.shape)
        
         # apply mlp
         out = self.mlp(out)
-        print(out.shape)
         return out
+    
+
+def init_weights( module):
+    """ Initialize the weights """
+    if isinstance(module, (nn.Linear, nn.Conv2d)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+        module.weight.data.normal_(mean=0.0, std=0.02)
+    
+    if isinstance(module, nn.LayerNorm):
+        module.bias.data.zero_()
+        module.weight.data.fill_(1.0)
+    return module

@@ -48,9 +48,12 @@ if params['gen_architecture']== 'trans':
                                       num_heads = params['num_heads_gen'], 
                                       num_blocks = params['num_blocks_gen'])
     
+    
     gen_G = gen_G.cuda()
     gen_F = gen_F.cuda()
 
+    gen_G = trans_models.init_weights(gen_G)
+    gen_F = trans_models.init_weights(gen_F)
 
 # ------------------------------------------------------------------------------------------
 # load config and intialize Discriminators
@@ -62,8 +65,8 @@ if params['disc_architecture'] == 'conv':
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()
 
-    disc_X.apply(Cycle_Gan_Net.weights_init_normal)
-    disc_Y.apply(Cycle_Gan_Net.weights_init_normal)
+    disc_X.apply(Gan_Net.weights_init_normal)
+    disc_Y.apply(Gan_Net.weights_init_normal)
 
 if params['disc_architecture']== 'trans':
     disc_X =  trans_models.Discriminator(
@@ -81,6 +84,8 @@ if params['disc_architecture']== 'trans':
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda() 
 
+    disc_X = trans_models.init_weights(disc_X)
+    disc_Y = trans_models.init_weights(disc_Y)
 
 # ------------------------------------------------------------------------------------------
 # intitialise frame model

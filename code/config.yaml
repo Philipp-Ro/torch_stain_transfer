@@ -31,7 +31,7 @@ preprocess_IHC : ['normalise']
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_099'
+output_folder : 'Test_01'
 model_name : 'gen_G_weights_final.pth'
 
 #----------------------------------------------------------------------------------------------
@@ -39,13 +39,14 @@ model_name : 'gen_G_weights_final.pth'
 #----------------------------------------------------------------------------------------------
 # set Generator architecture and Discriminator architecture
 # options are: 'trans' or 'conv'
-gen_architecture : 'trans'
+gen_architecture : 'conv'
 disc_architecture: 'trans'
 # set frame architecture 
 # otions are: 'cycleGan' or 'Gan'
 frame_architecture: 'Gan'
 
-# set CycleGAN LR and optimisers
+# --------------------- Optemizer settings -----------------------------------------------------
+# learningrate
 learn_rate_disc : 0.0002
 learn_rate_gen : 0.0002
 
@@ -53,14 +54,26 @@ learn_rate_gen : 0.0002
 beta1 : 0.5   
 beta2 : 0.999  
 
+# --------------------- hyperparameter for [ Discriminator | Generator | SSIM | PSNR ] ----------
 # set CycleGAN loss hyperparameter
-cycle_lambda : 4
-identity_lambda : .4
 generator_lambda : 2
 disc_lambda : 1
 ssim_lambda : 3
 psnr_lambda : 0.05
 
+# --------------------- hyperparameter for Cycle_Gan -------------------------------------------
+cycle_lambda : 4
+identity_lambda : .4
+
+# -------------------- Total Gen Loss Composition ----------------------------------------------
+# availeble inputs :
+#   'gan_loss'  --------> vanilla GAN loss from goodfellow
+#   'wgan_loss' --------> wasserstein GAN loss with gradient penelty -----> set disc_iterations
+#   'ssim' -------------> SSIM loss (1-ssim(fake,real))
+#   'psnr' -------------> PSNR loss
+
+total_loss_comp : ['gan_loss','ssim']
+disc_iterations : 10 
 
 # ---------------------------- 'CONV' ARCHITECTURE ---------------------------------------------
 num_gen_filters : 32   # num generator filters 

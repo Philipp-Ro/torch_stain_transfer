@@ -31,14 +31,16 @@ class model(torch.nn.Module):
         self.disc_optimizer = disc_optimizer
         self.gen_optimizer = gen_optimizer
         self.params = params
+        self.sigmoid = torch.nn.Sigmoid()
 
 
     def fit(self):
         Tensor = torch.cuda.FloatTensor
         #-------------------- loss functions and metrics ------------------------------
         #  check out https://neptune.ai/blog/gan-loss-functions
-        criterion_GAN = torch.nn.MSELoss().cuda()
-        #criterion_GAN  = torch.nn.L1Loss().cuda()
+        #criterion_GAN = torch.nn.MSELoss().cuda()
+        criterion_GAN = torch.nn.BCELoss().cuda()
+        # criterion_GAN  = torch.nn.L1Loss().cuda()
         ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
         psnr = PeakSignalNoiseRatio().cuda()
 
@@ -90,33 +92,47 @@ class model(torch.nn.Module):
                 
 
                 fake_IHC = self.gen(real_HE) 
-
+                loss_gen_total = 0
                 # --------------------------- Calculate losses ---------------------------------------------
-                # https://neptune.ai/blog/gan-loss-functions
                 # Generator loss
+                if 'gan_loss' in self.params['total_loss_comp']:
+                    disc_pred_fake = self.disc(fake_IHC).flatten()
+                    disc_probablity_fake = self.sigmoid(disc_pred_fake)
 
-                loss_gen = criterion_GAN(self.disc(fake_IHC), valid) 
-                # wgan /cgan? 
-       
-                # ssim loss
+                    loss_gan = criterion_GAN(disc_probablity_fake, valid) 
+                    loss_gan = self.params['generator_lambda']*loss_gan
+
+                    loss_gen_total = loss_gen_total + loss_gan
+
+                elif'wgan_loss'in self.params['total_loss_comp']:
+                    wgan_loss = -1. * torch.mean(self.disc(fake_IHC.detach()))
+                    loss_gen_total = loss_gen_total + wgan_loss
+
+
+                else :
+                    print('CHOOSE gan_loss OR wgan_loss  IN total_loss_comp IN THE YAML FILE' )
+ 
+               
+               
+                # denormalise images 
                 unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
                 unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
+                
+                # ssim loss 
+                if 'ssim' in self.params['total_loss_comp']:
+                    ssim_IHC = ssim(unnorm_fake_IHC, unnorm_real_IHC)
+                    loss_ssim = 1-ssim_IHC
 
-                ssim_IHC = ssim(unnorm_fake_IHC, unnorm_real_IHC)
-                loss_ssim = 1-ssim_IHC
+                    loss_ssim = (self.params['ssim_lambda']*loss_ssim)
+                    loss_gen_total = loss_gen_total + loss_ssim
 
                 # psnr loss 
-                psnr_IHC = psnr(unnorm_fake_IHC, unnorm_real_IHC)
-                loss_psnr = psnr_IHC 
+                if 'psnr' in self.params['total_loss_comp']:
+                    psnr_IHC = psnr(unnorm_fake_IHC, unnorm_real_IHC)
+                    loss_psnr = psnr_IHC 
 
-                # ------------------------- Apply Hyperparameters ------------------------------------------
-                loss_gen = self.params['generator_lambda']*loss_gen
-
-                loss_ssim = (self.params['ssim_lambda']*loss_ssim)
-                loss_psnr = (self.params['psnr_lambda']*loss_psnr)
-
-                # ------------------ Combine scaled losses --------------------------------------------------
-                loss_gen_total = loss_gen + loss_ssim + loss_psnr
+                    loss_psnr = (self.params['psnr_lambda']*loss_psnr)
+                    loss_gen_total = loss_gen_total + loss_psnr
 
                 # ------------------------- Apply Weights ---------------------------------------------------
                 self.gen_optimizer.zero_grad()
@@ -126,24 +142,33 @@ class model(torch.nn.Module):
                 # ---------------------------------------------------------------------------------
                 # Train Discriminators
                 # ---------------------------------------------------------------------------------
-
-                # --------------------------- Discriminator ---------------------------------------
+                
                 # Calculate loss
-        
-                loss_real = criterion_GAN(self.disc(real_IHC), valid) # train to discriminate real images as real
-                loss_fake = criterion_GAN(self.disc(fake_IHC.detach()), fake) # train to discriminate fake images as fake
-                
-                loss_disc = (loss_real + loss_fake)/2
+                if 'gan_loss' in self.params['total_loss_comp']:
+  
+                    disc_pred_real = self.disc(real_IHC).flatten()
+                    disc_probablity_real = self.sigmoid(disc_pred_real)
 
-                # Apply Hyperparameter
-                loss_disc = self.params['disc_lambda']*loss_disc 
-                
-                # --------------------------- Total Discriminator Loss ------------------------------------
-                loss_disc_total = loss_disc
+                    loss_real = criterion_GAN(disc_probablity_real, valid) # train to discriminate real images as real 
+                    loss_real = loss_real *self.params['disc_lambda']
+                    loss_real.backward()
 
-                # ------------------------- Apply Weights -------------------------------------------------
+                    loss_fake = criterion_GAN(disc_probablity_fake, fake) # train to discriminate fake images as fake
+                    loss_fake = loss_fake**self.params['disc_lambda']
+                    loss_fake.backward
+                    
+                elif'wgan_loss'in self.params['total_loss_comp']:
+
+                    for d_iter in range(self.params['disc_iterations']):
+
+                        loss_disc  = -(torch.mean(self.disc(fake_IHC.flatten())) - torch.mean(self.disc(real_IHC)))
+
+                    
+                    loss_disc = self.params['disc_lambda']*loss_disc 
+                
+                # ------------------------- Discriminator step --------------------------------------------
+
                 self.disc_optimizer.zero_grad()
-                loss_disc_total.backward()
                 self.disc_optimizer.step()
 
                 # -----------------------------------------------------------------------------------------
@@ -152,7 +177,7 @@ class model(torch.nn.Module):
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
-                    train_loop.set_postfix(loss_gen=loss_gen_total.item(), ssim = ssim_IHC.item(), MSE_gen = loss_gen.item())
+                    train_loop.set_postfix(loss_gen=loss_gen_total.item(), ssim = ssim_IHC.item(), MSE_gen = loss_gan.item())
             k = k+1
             # -------------------------- saving models after each 10 epochs --------------------------------
             if epoch % 10 == 0:
@@ -175,5 +200,4 @@ def weights_init_normal(m):
             torch.nn.init.normal_(m.weight.data, 1.0, 0.02) # reset BatchNorm2d's weight(tensor) with Gaussian Distribution
             torch.nn.init.constant_(m.bias.data, 0.0) # reset BatchNorm2d's bias(tensor) with Constant(0)
                 
-
 

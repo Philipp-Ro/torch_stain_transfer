@@ -95,57 +95,75 @@ class model(torch.nn.Module):
    
 
                 # --------------------------- Calculate losses ---------------------------------------------
-                #
-                # Generator loss
-                loss_gen_G = criterion_GAN(self.disc_X(fake_IHC), valid) 
-                loss_gen_F= criterion_GAN(self.disc_Y(fake_HE), valid)
 
-                #loss_gen_G = criterion_GAN(fake_IHC, real_IHC) 
-                #loss_gen_F = criterion_GAN(fake_HE, real_HE)         
+                if 'gan_loss' in self.params['total_loss_comp']:
+                    loss_gen_G = -1. * torch.mean(self.disc_X(fake_IHC))
+                    loss_gen_F = -1. * torch.mean(self.disc_Y(fake_HE))
 
-                # ssim loss
+                    # hyper parameters
+                    loss_gen_G = self.params['generator_lambda']*loss_gen_G
+                    loss_gen_F = self.params['generator_lambda']*loss_gen_F
+
+
+                    loss_gen_total = loss_gen_total + (loss_gen_G+ loss_gen_F)/2
+
+                elif'wgan_loss'in self.params['total_loss_comp']:
+                    wgan_loss = 0
+                    loss_gen_total = loss_gen_total + wgan_loss
+
+                elif'cgan_loss' in self.params['total_loss_comp']:
+                    cgan_loss = 0
+                    loss_gen_total = loss_gen_total + cgan_loss
+
+                else :
+                    print('CHOOSE gan_loss OR wgan_loss OR cgan_loss IN total_loss_comp IN THE YAML FILE' )
+ 
+       
+                # denormalise images 
                 unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
                 unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
                 unnorm_fake_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],fake_HE)
                 unnorm_real_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],real_HE)
+                
+                # ssim loss 
+                if 'ssim' in self.params['total_loss_comp']:
+                    ssim_IHC = ssim(unnorm_fake_IHC, unnorm_real_IHC)
+                    loss_ssim = 1-ssim_IHC
 
-                ssim_IHC = ssim(unnorm_fake_IHC, unnorm_real_IHC)
-                ssim_HE = ssim(unnorm_fake_HE, unnorm_real_HE)
-                loss_ssim = ((1-ssim_IHC) + (1-ssim_HE))/2
+                    loss_ssim = (self.params['ssim_lambda']*loss_ssim)
+                    loss_gen_total = loss_gen_total + loss_ssim
 
                 # psnr loss 
-                psnr_IHC = psnr(unnorm_fake_IHC, unnorm_real_IHC)
-                psnr_HE = psnr(unnorm_fake_HE, unnorm_real_HE)
-                loss_psnr = (psnr_IHC + psnr_HE)/2
+                if 'psnr' in self.params['total_loss_comp']:
+                    psnr_IHC = psnr(unnorm_fake_IHC, unnorm_real_IHC)
+                    loss_psnr = psnr_IHC 
+
+                    loss_psnr = (self.params['psnr_lambda']*loss_psnr)
+                    loss_gen_total = loss_gen_total + loss_psnr
+                #
+
 
                 # Identity Loss 
                 loss_id_HE = criterion_identity(self.gen_F(real_IHC), real_IHC) 
+                loss_id_HE = self.params['identity_lambda']*loss_id_HE
+                loss_gen_F_total = loss_id_HE
+
                 loss_id_IHC = criterion_identity(self.gen_G(real_HE), real_HE)
+                loss_id_IHC = self.params['identity_lambda']*loss_id_IHC
+                loss_gen_G_total = loss_gen_G_total + loss_id_IHC
                                                                              
                 # Cycle Loss
                 cycled_IHC = self.gen_G(fake_HE) 
                 loss_cycle_G = criterion_cycle(cycled_IHC, real_IHC) 
-
+                loss_cycle_G = self.params['cycle_lambda']*loss_cycle_G
+                loss_gen_G_total = loss_gen_G_total + loss_cycle_G 
+                
                 cycled_HE = self.gen_F(fake_IHC)
                 loss_cycle_F = criterion_cycle(cycled_HE, real_IHC)
-                
-                # ------------------------- Apply Hyperparameters ---------------------------------
-                loss_gen_G = self.params['generator_lambda']*loss_gen_G
-                loss_gen_F = self.params['generator_lambda']*loss_gen_F
-
-                loss_cycle_G = self.params['cycle_lambda']*loss_cycle_G
                 loss_cycle_F = self.params['cycle_lambda']*loss_cycle_F
-
-                loss_id_HE = self.params['identity_lambda']*loss_id_HE
-                loss_id_IHC = self.params['identity_lambda']*loss_id_IHC
-
-                loss_ssim = (self.params['ssim_lambda']*loss_ssim)
-                loss_psnr = (self.params['psnr_lambda']*loss_psnr)
+                loss_gen_F_total = loss_gen_F_total + loss_cycle_F
 
                 # ------------------ Combine scaled losses for gen_G and gen_F ---------------------
-                loss_gen_G_total = loss_gen_G + loss_cycle_G + loss_id_IHC + loss_ssim + loss_psnr
-                loss_gen_F_total = loss_gen_F + loss_cycle_F + loss_id_HE + loss_ssim + loss_psnr
-
                 loss_gen_total = loss_gen_G_total + loss_gen_F_total
                 
                 # ------------------------- Apply Weights ------------------------------------------
@@ -161,7 +179,7 @@ class model(torch.nn.Module):
 
                 # --------------------------- Discriminator X -------------------------------------
                 # Calculate loss
-                print(self.disc_X(real_HE))
+
                 loss_real = criterion_GAN(self.disc_X(real_HE), valid) # train to discriminate real images as real
                 loss_fake = criterion_GAN(self.disc_X(fake_HE.detach()), fake) # train to discriminate fake images as fake
                 
