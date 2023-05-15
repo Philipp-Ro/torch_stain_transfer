@@ -43,7 +43,7 @@ gen_architecture : 'conv'
 disc_architecture: 'trans'
 # set frame architecture 
 # otions are: 'cycleGan' or 'Gan'
-frame_architecture: 'Gan'
+frame_architecture: 'cycleGan'
 
 # --------------------- Optemizer settings -----------------------------------------------------
 # learningrate
@@ -73,11 +73,12 @@ identity_lambda : .4
 #   'psnr' -------------> PSNR loss
 
 total_loss_comp : ['gan_loss','ssim']
-disc_iterations : 10 
+disc_iterations : 4 
 
 # ---------------------------- 'CONV' ARCHITECTURE ---------------------------------------------
 num_gen_filters : 32   # num generator filters 
 num_resnet : 9         # num of resnet blocks in the generator
+hidden_dim : 64
 num_disc_filters : 64  # num discriminator filters 
 U_net_filter_groth : 2
 U_net_step_num : 2

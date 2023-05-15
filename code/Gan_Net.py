@@ -32,18 +32,13 @@ class model(torch.nn.Module):
         self.gen_optimizer = gen_optimizer
         self.params = params
         self.sigmoid = torch.nn.Sigmoid()
+        self.criterion_GAN = torch.nn.BCELoss().cuda()
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
+        self.psnr = PeakSignalNoiseRatio().cuda()
 
 
     def fit(self):
         Tensor = torch.cuda.FloatTensor
-        #-------------------- loss functions and metrics ------------------------------
-        #  check out https://neptune.ai/blog/gan-loss-functions
-        #criterion_GAN = torch.nn.MSELoss().cuda()
-        criterion_GAN = torch.nn.BCELoss().cuda()
-        # criterion_GAN  = torch.nn.L1Loss().cuda()
-        ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
-        psnr = PeakSignalNoiseRatio().cuda()
-
 
         k =0
         for epoch in range(self.params['num_epochs']):
@@ -77,50 +72,29 @@ class model(torch.nn.Module):
             for i, (real_HE, real_IHC,img_name) in train_loop :
 
                 # Adversarial ground truths
-                valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
-                fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
+                self.valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
+                self.fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
                 
                 # -----------------------------------------------------------------------------------------
                 # Train Generator
                 # -----------------------------------------------------------------------------------------
-                
-                # ------------ Generate fake_IHC with gen -------------------------------------------------
-                #
-                # input shape [n, in_channels, img_size, img_size]
-                # the output layer of the conv and the trans model is a nn.Tanh layer:
-                # output shape [1, in_channels, img_size, img_size]
-                
-
                 fake_IHC = self.gen(real_HE) 
                 loss_gen_total = 0
-                # --------------------------- Calculate losses ---------------------------------------------
-                # Generator loss
-                if 'gan_loss' in self.params['total_loss_comp']:
-                    disc_pred_fake = self.disc(fake_IHC).flatten()
-                    disc_probablity_fake = self.sigmoid(disc_pred_fake)
 
-                    loss_gan = criterion_GAN(disc_probablity_fake, valid) 
-                    loss_gan = self.params['generator_lambda']*loss_gan
+                loss_gen = utils.generator_loss(self, 
+                                                disc = self.disc,
+                                                fake_img = fake_IHC,
+                                                params = self.params)
+                
+                loss_gen_total = loss_gen_total + loss_gen
 
-                    loss_gen_total = loss_gen_total + loss_gan
-
-                elif'wgan_loss'in self.params['total_loss_comp']:
-                    wgan_loss = -1. * torch.mean(self.disc(fake_IHC.detach()))
-                    loss_gen_total = loss_gen_total + wgan_loss
-
-
-                else :
-                    print('CHOOSE gan_loss OR wgan_loss  IN total_loss_comp IN THE YAML FILE' )
- 
-               
-               
                 # denormalise images 
                 unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
                 unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
                 
                 # ssim loss 
                 if 'ssim' in self.params['total_loss_comp']:
-                    ssim_IHC = ssim(unnorm_fake_IHC, unnorm_real_IHC)
+                    ssim_IHC = self.ssim(unnorm_fake_IHC, unnorm_real_IHC)
                     loss_ssim = 1-ssim_IHC
 
                     loss_ssim = (self.params['ssim_lambda']*loss_ssim)
@@ -128,56 +102,67 @@ class model(torch.nn.Module):
 
                 # psnr loss 
                 if 'psnr' in self.params['total_loss_comp']:
-                    psnr_IHC = psnr(unnorm_fake_IHC, unnorm_real_IHC)
+                    psnr_IHC = self.psnr(unnorm_fake_IHC, unnorm_real_IHC)
                     loss_psnr = psnr_IHC 
 
                     loss_psnr = (self.params['psnr_lambda']*loss_psnr)
                     loss_gen_total = loss_gen_total + loss_psnr
 
                 # ------------------------- Apply Weights ---------------------------------------------------
+                
                 self.gen_optimizer.zero_grad()
                 loss_gen_total.backward()
                 self.gen_optimizer.step()
 
-                # ---------------------------------------------------------------------------------
-                # Train Discriminators
-                # ---------------------------------------------------------------------------------
-                
-                # Calculate loss
-                if 'gan_loss' in self.params['total_loss_comp']:
+
   
-                    disc_pred_real = self.disc(real_IHC).flatten()
-                    disc_probablity_real = self.sigmoid(disc_pred_real)
-
-                    loss_real = criterion_GAN(disc_probablity_real, valid) # train to discriminate real images as real 
-                    loss_real = loss_real *self.params['disc_lambda']
-                    loss_real.backward()
-
-                    loss_fake = criterion_GAN(disc_probablity_fake, fake) # train to discriminate fake images as fake
-                    loss_fake = loss_fake**self.params['disc_lambda']
-                    loss_fake.backward
-                    
-                elif'wgan_loss'in self.params['total_loss_comp']:
-
-                    for d_iter in range(self.params['disc_iterations']):
-
-                        loss_disc  = -(torch.mean(self.disc(fake_IHC.flatten())) - torch.mean(self.disc(real_IHC)))
-
-                    
-                    loss_disc = self.params['disc_lambda']*loss_disc 
+                # ---------------------------------------------------------------------------------
+                # Train Discriminator
+                # ---------------------------------------------------------------------------------
                 
-                # ------------------------- Discriminator step --------------------------------------------
+                if 'gan_loss' in self.params['total_loss_comp']:
+                    # vanilla gan with the loss function of goodfellow
+                    loss_disc = utils.discriminator_loss(   self, 
+                                                            disc = self.disc, 
+                                                            real_img = real_IHC, 
+                                                            fake_img = fake_IHC, 
+                                                            params = self.params)
+                    
+                    
 
-                self.disc_optimizer.zero_grad()
-                self.disc_optimizer.step()
+                # ------------------------- Apply Weights ---------------------------------------------------
+                    loss_disc_print = loss_disc
 
+                    self.disc_optimizer.zero_grad()
+                    loss_disc.backward()
+                    self.disc_optimizer.step()
+                
+                elif'wgan_loss'in self.params['total_loss_comp']:
+                    for d_iter in range(self.params['disc_iterations']):
+                        gp = utils.gradient_penalty(self.disc, real_IHC, fake_IHC)
+
+                        loss_critic = utils.discriminator_loss( self, 
+                                                                disc = self.disc, 
+                                                                real_img = real_IHC, 
+                                                                fake_img = fake_IHC, 
+                                                                params = self.params)
+                        
+                        loss_critic = loss_critic + self.params['disc_lambda']*gp.detach() 
+                        
+                # ------------------------- Apply Weights ---------------------------------------------------
+                        loss_disc_print = loss_critic
+
+                        self.disc.zero_grad()
+                        loss_critic.backward()
+                        self.disc_optimizer.step()
+            
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
-                    train_loop.set_postfix(loss_gen=loss_gen_total.item(), ssim = ssim_IHC.item(), MSE_gen = loss_gan.item())
+                    train_loop.set_postfix( Gen_loss = loss_gen_total, disc_loss = loss_disc_print)
             k = k+1
             # -------------------------- saving models after each 10 epochs --------------------------------
             if epoch % 10 == 0:

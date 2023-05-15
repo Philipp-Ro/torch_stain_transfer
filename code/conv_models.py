@@ -22,20 +22,20 @@ class ResidualBlock(nn.Module):
 # GENERATOR MODEL
 #-----------------------------------------------------------------------------------------------
 class Generator(nn.Module):
-    def __init__(self, in_channels,U_net_filter_groth,U_net_step_num, num_residual_blocks):
+    def __init__(self, in_channels,hidden_dim, U_net_filter_groth,U_net_step_num, num_residual_blocks):
         super(Generator, self).__init__()
 
         
         # Inital Convolution:  3 * [img_height] * [img_width] ----> 64 * [img_height] * [img_width]
-        out_channels=64
+        #out_channels=64
         self.conv = nn.Sequential(
             nn.ReflectionPad2d(in_channels), # padding, keep the image size constant after next conv2d
-            nn.Conv2d(in_channels, out_channels, 2*in_channels+1),
-            nn.InstanceNorm2d(out_channels),
+            nn.Conv2d(in_channels, hidden_dim, 2*in_channels+1),
+            nn.InstanceNorm2d(hidden_dim),
             nn.ReLU(inplace=True),
         )
         
-        channels = out_channels
+        channels = hidden_dim
         
         # Downsampling   64*256*256 -> 128*128*128 -> 256*64*64
         self.down = []
@@ -71,7 +71,7 @@ class Generator(nn.Module):
             nn.ReflectionPad2d(in_channels),
             nn.Conv2d(channels, in_channels, 2*in_channels+1),
             nn.Tanh()
-            #nn.GELU()?
+
         )
     
     def forward(self, x):
@@ -88,17 +88,40 @@ class Generator(nn.Module):
 # DISCRIMINATOR
 #-----------------------------------------------------------------------------------------------
 class Discriminator(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, hidden_dim, filter_groth, step_num ):
         super(Discriminator, self).__init__()
         
+        self.conv = nn.Sequential(
+                nn.ReflectionPad2d(in_channels), 
+                nn.Conv2d(in_channels, hidden_dim, 2*in_channels+1),
+                nn.ReLU(inplace=True),
+                )
+
+        channels = hidden_dim
+        
+        self.down = []
+        for _ in range(step_num):
+            out_channels = channels * filter_groth
+            self.down += [
+                nn.Conv2d(channels, out_channels, 3, stride=2, padding=1),
+                nn.InstanceNorm2d(out_channels),
+                nn.ReLU(inplace=True),
+            ]
+            channels = out_channels
+        self.down = nn.Sequential(*self.down)
+
+
+
+
+
         self.model = nn.Sequential(
-            # why normalize=False?
+          
             *self.block(in_channels, 64, normalize=False),
             *self.block(64, 128),  
             *self.block(128, 256), 
             *self.block(256, 512), 
             
-            # Why padding first then convolution?
+        
             nn.ZeroPad2d((1,0,1,0)), # padding left and top   512*16*16 -> 512*17*17
             nn.Conv2d(512, 1, 4, padding=1) # 512*17*17 -> 1*16*16
         )

@@ -5,6 +5,7 @@ import os
 from torchvision import transforms
 import torch 
 
+
 def get_config_from_yaml(config_path):
     with open(file=config_path, mode='r') as param_file:
         parameters = yaml.safe_load(stream=param_file)
@@ -61,11 +62,10 @@ def denomalise(mean,std,img):
 
 ## gradient penalty for wasserstein Gan with gradient penalty 
 # https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/GANs/4.%20WGAN-GP
-def gradient_penalty(critic, real, fake, device="cpu"):
+def gradient_penalty(critic, real, fake):
     BATCH_SIZE, C, H, W = real.shape
-    alpha = torch.rand((BATCH_SIZE, 1, 1, 1)).repeat(1, C, H, W).to(device)
+    alpha = torch.rand((BATCH_SIZE, 1, 1, 1)).repeat(1, C, H, W).cuda()
     interpolated_images = real * alpha + fake * (1 - alpha)
-
     # Calculate critic scores
     mixed_scores = critic(interpolated_images)
 
@@ -81,3 +81,72 @@ def gradient_penalty(critic, real, fake, device="cpu"):
     gradient_norm = gradient.norm(2, dim=1)
     gradient_penalty = torch.mean((gradient_norm - 1) ** 2)
     return gradient_penalty
+
+# ---------------------------------------------------------------------------------
+# Discriminator training function 
+# # ---------------------------------------------------------------------------------
+
+def discriminator_loss(self, disc, real_img, fake_img, params):
+    # inputs:
+    # disc -------------> initialized Discriminator model
+    # real_img ---------> real HE or IHC img 
+    # fake_img ---------> fake HE or IHC img 
+    # params -----------> training parameters 
+                  
+    if 'gan_loss' in params['total_loss_comp']:
+
+        # ------------------ train to discriminate fake images as fake --------------------------------
+        # detach() generated image so that the grpah doesnt go through !!!! 
+        disc_pred_fake = disc(fake_img.detach()).flatten()
+        disc_probablity_fake = self.sigmoid(disc_pred_fake)
+
+        loss_fake = self.criterion_GAN(disc_probablity_fake, self.fake) 
+        loss_fake_scaled = loss_fake*params['disc_lambda']
+
+        # ------------------ train to discriminate real images as real --------------------------------
+        disc_pred_real = disc(real_img).flatten()
+        disc_probablity_real = self.sigmoid(disc_pred_real)
+
+        loss_real = self.criterion_GAN(disc_probablity_real, self.valid) 
+        loss_real_scaled = loss_real *params['disc_lambda']
+     
+        # ------------------ combine losses for total loss ---------------------------------------------
+        loss_total = (loss_real_scaled+loss_fake_scaled)/2
+     
+
+                    
+    elif'wgan_loss'in params['total_loss_comp']:
+        # https://jonathan-hui.medium.com/gan-wasserstein-gan-wgan-gp-6a1a2aa1b490
+
+        loss_critic  = -(torch.mean(disc(fake_img.detach())) - torch.mean(self.disc(real_img)))
+        loss_total = loss_critic
+
+    return loss_total
+
+
+        
+# ---------------------------------------------------------------------------------
+# Generators training function 
+# ---------------------------------------------------------------------------------
+
+def generator_loss(self, disc, fake_img, params):
+    # inputs:
+    # disc -------------> initialized Discriminator model
+    # fake_img ---------> fake HE or IHC img 
+    # params -----------> training parameters 
+    if 'gan_loss' in params['total_loss_comp']:
+        disc_pred_fake = disc(fake_img.detach()).flatten()
+        disc_probablity_fake = self.sigmoid(disc_pred_fake)
+
+        loss_gen = self.criterion_GAN(disc_probablity_fake, self.valid) 
+        loss_gen = self.params['generator_lambda']*loss_gen
+
+
+
+    elif'wgan_loss'in self.params['total_loss_comp']:
+        loss_gen= -1. * torch.mean(self.disc(fake_img.detach()))
+
+    else :
+        print('CHOOSE gan_loss OR wgan_loss  IN total_loss_comp IN THE YAML FILE' )
+ 
+    return loss_gen
