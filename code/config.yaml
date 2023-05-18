@@ -31,7 +31,7 @@ preprocess_IHC : ['normalise']
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_01'
+output_folder : 'Test_099'
 model_name : 'gen_G_weights_final.pth'
 
 #----------------------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ gen_architecture : 'conv'
 disc_architecture: 'trans'
 # set frame architecture 
 # otions are: 'cycleGan' or 'Gan'
-frame_architecture: 'cycleGan'
+frame_architecture: 'Gan'
 
 # --------------------- Optemizer settings -----------------------------------------------------
 # learningrate
@@ -68,13 +68,14 @@ identity_lambda : .4
 # -------------------- Total Gen Loss Composition ----------------------------------------------
 # availeble inputs :
 #   'gan_loss'  --------> vanilla GAN loss from goodfellow
-#   'wgan_loss' --------> wasserstein GAN loss with gradient penelty -----> set disc_iterations
+#   'wgan_loss_gp' -----> wasserstein GAN loss with gradient penelty -----> set disc_iterations
+#   'wgan_loss'---------> wasserstein loss weight clipping 
 #   'ssim' -------------> SSIM loss (1-ssim(fake,real))
 #   'psnr' -------------> PSNR loss
 
-total_loss_comp : ['gan_loss','ssim']
+total_loss_comp : ['gan_loss']
 disc_iterations : 4 
-
+weight_clipping : 0.01 
 # ---------------------------- 'CONV' ARCHITECTURE ---------------------------------------------
 num_gen_filters : 32   # num generator filters 
 num_resnet : 9         # num of resnet blocks in the generator

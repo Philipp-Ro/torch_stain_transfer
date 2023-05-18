@@ -17,9 +17,15 @@ def save_config_in_dir(saving_dir,code):
 
 
 
-def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name):
-    fig_name = 'plot_'+ img_name[0]+ '.png'
+def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name,step,epoch):
+    if step == 'train' :
+        fig_name = 'Train_plot_'+ img_name[0]+ str(epoch)+'.png'
 
+    elif step == 'test':
+        fig_name = 'Test_plot_'+ img_name[0]+ '.png'
+    else:
+        print('SET STEP TO TRAIN OR TEST ')
+        
     real_HE = real_HE.cpu().detach().numpy()
     fake_IHC = fake_IHC.cpu().detach().numpy()
     real_IHC = real_IHC.cpu().detach().numpy()
@@ -115,7 +121,7 @@ def discriminator_loss(self, disc, real_img, fake_img, params):
      
 
                     
-    elif'wgan_loss'in params['total_loss_comp']:
+    elif'wgan_loss_gp'in params['total_loss_comp'] or 'wgan_loss' in params['total_loss_comp']:
         # https://jonathan-hui.medium.com/gan-wasserstein-gan-wgan-gp-6a1a2aa1b490
 
         loss_critic  = -(torch.mean(disc(fake_img.detach())) - torch.mean(self.disc(real_img)))

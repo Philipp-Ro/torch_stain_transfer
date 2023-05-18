@@ -160,6 +160,7 @@ class model(torch.nn.Module):
                 loss_gen_total = loss_gen_total + loss_cycle_total + loss_id_total
                 
                 # ------------------------- Apply Weights ------------------------------------------
+                loss_gen_print = loss_gen_total
 
                 self.gen_optimizer.zero_grad()
                 loss_gen_total.backward()
@@ -193,6 +194,8 @@ class model(torch.nn.Module):
                 loss_disc_total = (loss_disc_X + loss_disc_Y )/2
 
                 # ------------------------- Apply Weights -------------------------------------------------
+                loss_disc_print = loss_disc_total
+
                 self.disc_optimizer.zero_grad()
                 loss_disc_total.backward()
                 self.disc_optimizer.step()
@@ -203,7 +206,7 @@ class model(torch.nn.Module):
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
-                    train_loop.set_postfix(loss_gen_G=loss_gen_G_total.item(), ssim = ssim_IHC.item(), MSE_gen_G = loss_gen_G.item())
+                    train_loop.set_postfix(loss_gen=loss_gen_print, loss_disc = loss_disc_total)
             k = k+1
             # -------------------------- saving models after each 10 epochs --------------------------------
             if epoch % 10 == 0:

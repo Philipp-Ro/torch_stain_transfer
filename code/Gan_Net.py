@@ -137,7 +137,7 @@ class model(torch.nn.Module):
                     loss_disc.backward()
                     self.disc_optimizer.step()
                 
-                elif'wgan_loss'in self.params['total_loss_comp']:
+                elif'wgan_loss_gp'in self.params['total_loss_comp']:
                     for d_iter in range(self.params['disc_iterations']):
                         gp = utils.gradient_penalty(self.disc, real_IHC, fake_IHC)
 
@@ -155,7 +155,24 @@ class model(torch.nn.Module):
                         self.disc.zero_grad()
                         loss_critic.backward()
                         self.disc_optimizer.step()
+
+                elif'wgan_loss'in self.params['total_loss_comp']:
+                    for d_iter in range(self.params['disc_iterations']):
+
+                        loss_critic = utils.discriminator_loss( self, 
+                                                                disc = self.disc, 
+                                                                real_img = real_IHC, 
+                                                                fake_img = fake_IHC, 
+                                                                params = self.params)
+                        self.disc.zero_grad()
+                        loss_critic.backward(retain_graph=True)
+                        self.disc_optimizer.step()
             
+
+                        for p in self.disc.parameters():
+                            p.data.clamp_(-self.params['weight_clipping'], self.params['weight_clipping'])
+
+                        loss_disc_print = loss_critic
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
@@ -164,10 +181,19 @@ class model(torch.nn.Module):
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix( Gen_loss = loss_gen_total, disc_loss = loss_disc_print)
             k = k+1
-            # -------------------------- saving models after each 10 epochs --------------------------------
-            if epoch % 10 == 0:
+            # -------------------------- saving models after each 5 epochs --------------------------------
+            if epoch % 5 == 0:
                 output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
                 epoch_name = 'gen_G_weights_'+str(epoch)
+
+                utils.plot_img_set( real_HE = real_HE,
+                                    fake_IHC=unnorm_fake_IHC,
+                                    real_IHC=unnorm_real_IHC,
+                                    i=i,
+                                    params = self.params,
+                                    img_name = img_name,
+                                    step = 'train',
+                                    epoch = epoch )
 
                 torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
               

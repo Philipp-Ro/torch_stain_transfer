@@ -70,7 +70,14 @@ class test_network():
 
                 if i in randomlist:
                   
-                    utils.plot_img_set(real_HE=unnorm_real_HE, fake_IHC=unnorm_fake_IHC, real_IHC=unnorm_real_IHC, i=i,params = self.params,img_name = img_name)
+                    utils.plot_img_set( real_HE=unnorm_real_HE,
+                                        fake_IHC=unnorm_fake_IHC,
+                                        real_IHC=unnorm_real_IHC,
+                                        i=i,
+                                        params = self.params,
+                                        img_name = img_name,
+                                        step = 'test',
+                                        epoch = epoch )
             
                 
                 ssim_scores.append(ssim(unnorm_fake_IHC, unnorm_real_IHC).item())
@@ -98,6 +105,7 @@ def initialize_gen_model(params):
         gen_test = conv_models.Generator( in_channels= params['in_channels'],
                                                 num_residual_blocks = params['num_resnet'],
                                                 U_net_filter_groth = params['U_net_filter_groth'],
+                                                hidden_dim= params['hidden_dim'],
                                                 U_net_step_num = params['U_net_step_num']
                                             )
         
