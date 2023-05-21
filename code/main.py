@@ -61,8 +61,24 @@ if params['gen_architecture']== 'trans':
 # load config and intialize Discriminators
 # ------------------------------------------------------------------------------------------ 
 if params['disc_architecture'] == 'conv':
-    disc_X = conv_models.Discriminator(in_channels= params['in_channels'])
-    disc_Y = conv_models.Discriminator(in_channels= params['in_channels'])
+    img_shape = params['img_size']
+    img_shape.append(params['in_channels'])
+    disc_X = conv_models.Discriminator(
+                                        disc_step_num=params['disc_step_num'],
+                                        disc_filter_groth=params['disc_filter_groth'],
+                                        in_channels= params['in_channels'],
+                                        hidden_dim=params['hidden_dim'])
+                                
+                                       
+                                       
+    
+    disc_Y = conv_models.Discriminator(
+                                        disc_step_num=params['disc_step_num'],
+                                        disc_filter_groth=params['disc_filter_groth'],
+                                        in_channels= params['in_channels'],
+                                        hidden_dim=params['hidden_dim'])
+                                       
+                                       
 
     disc_X = disc_X.cuda()
     disc_Y = disc_Y.cuda()

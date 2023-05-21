@@ -1,4 +1,5 @@
 import torch.nn as nn
+import numpy as np
 #-----------------------------------------------------------------------------------------------
 # RESIDUAL BLOCK
 #-----------------------------------------------------------------------------------------------
@@ -88,20 +89,24 @@ class Generator(nn.Module):
 # DISCRIMINATOR
 #-----------------------------------------------------------------------------------------------
 class Discriminator(nn.Module):
-    def __init__(self, in_channels, hidden_dim, filter_groth, step_num ):
+    def __init__(self, disc_step_num, disc_filter_groth ,in_channels,hidden_dim):
         super(Discriminator, self).__init__()
-        
-        self.conv = nn.Sequential(
-                nn.ReflectionPad2d(in_channels), 
-                nn.Conv2d(in_channels, hidden_dim, 2*in_channels+1),
-                nn.ReLU(inplace=True),
-                )
 
+        # Inital Convolution:  3 * [img_height] * [img_width] ----> 64 * [img_height] * [img_width]
+        #out_channels=64
+        self.conv = nn.Sequential(
+            nn.ReflectionPad2d(in_channels), # padding, keep the image size constant after next conv2d
+            nn.Conv2d(in_channels, hidden_dim, 2*in_channels+1),
+            nn.InstanceNorm2d(hidden_dim),
+            nn.ReLU(inplace=True),
+        )
+        
         channels = hidden_dim
         
+        # Downsampling   64*256*256 -> 128*128*128 -> 256*64*64
         self.down = []
-        for _ in range(step_num):
-            out_channels = channels * filter_groth
+        for _ in range(disc_step_num):
+            out_channels = channels * disc_filter_groth
             self.down += [
                 nn.Conv2d(channels, out_channels, 3, stride=2, padding=1),
                 nn.InstanceNorm2d(out_channels),
@@ -109,33 +114,12 @@ class Discriminator(nn.Module):
             ]
             channels = out_channels
         self.down = nn.Sequential(*self.down)
-
-
-
-
-
-        self.model = nn.Sequential(
-          
-            *self.block(in_channels, 64, normalize=False),
-            *self.block(64, 128),  
-            *self.block(128, 256), 
-            *self.block(256, 512), 
-            
         
-            nn.ZeroPad2d((1,0,1,0)), # padding left and top   512*16*16 -> 512*17*17
-            nn.Conv2d(512, 1, 4, padding=1) # 512*17*17 -> 1*16*16
-        )
-        
-        self.scale_factor = 16
-    
-    @staticmethod
-    def block(in_channels, out_channels, normalize=True):
-        layers = [nn.Conv2d(in_channels, out_channels, 4, stride=2, padding=1)]
-        if normalize:
-            layers.append(nn.InstanceNorm2d(out_channels))
-        layers.append(nn.LeakyReLU(0.2, inplace=True))
-        
-        return layers
-        
+        self.sigmoid = nn.Sigmoid()
+
+
     def forward(self, x):
-        return self.model(x)
+        x = self.conv(x)
+        x = self.down(x)
+        out = self.sigmoid(x)
+        return out

@@ -31,7 +31,7 @@ preprocess_IHC : ['normalise']
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_099'
+output_folder : 'Test_03'
 model_name : 'gen_G_weights_final.pth'
 
 #----------------------------------------------------------------------------------------------
@@ -40,7 +40,7 @@ model_name : 'gen_G_weights_final.pth'
 # set Generator architecture and Discriminator architecture
 # options are: 'trans' or 'conv'
 gen_architecture : 'conv'
-disc_architecture: 'trans'
+disc_architecture: 'conv'
 # set frame architecture 
 # otions are: 'cycleGan' or 'Gan'
 frame_architecture: 'Gan'
@@ -56,7 +56,7 @@ beta2 : 0.999
 
 # --------------------- hyperparameter for [ Discriminator | Generator | SSIM | PSNR ] ----------
 # set CycleGAN loss hyperparameter
-generator_lambda : 2
+generator_lambda : 1
 disc_lambda : 1
 ssim_lambda : 3
 psnr_lambda : 0.05
@@ -69,20 +69,23 @@ identity_lambda : .4
 # availeble inputs :
 #   'gan_loss'  --------> vanilla GAN loss from goodfellow
 #   'wgan_loss_gp' -----> wasserstein GAN loss with gradient penelty -----> set disc_iterations
-#   'wgan_loss'---------> wasserstein loss weight clipping 
+#   'wgan_loss'---------> wasserstein loss weight clipping -----> set disc_iterations and weight clipping 
 #   'ssim' -------------> SSIM loss (1-ssim(fake,real))
 #   'psnr' -------------> PSNR loss
 
-total_loss_comp : ['gan_loss']
+total_loss_comp : ['wgan_loss']
 disc_iterations : 4 
 weight_clipping : 0.01 
 # ---------------------------- 'CONV' ARCHITECTURE ---------------------------------------------
 num_gen_filters : 32   # num generator filters 
-num_resnet : 9         # num of resnet blocks in the generator
-hidden_dim : 64
-num_disc_filters : 64  # num discriminator filters 
-U_net_filter_groth : 2
+U_net_filter_groth : 2 # U net filter groth
 U_net_step_num : 2
+num_resnet : 9  
+
+
+disc_filter_groth : 4
+hidden_dim : 16
+disc_step_num : 4
 
 
 # ---------------------------- 'TRANS' ARCHITECTURE --------------------------------------------

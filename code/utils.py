@@ -25,7 +25,7 @@ def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name,step,epoch):
         fig_name = 'Test_plot_'+ img_name[0]+ '.png'
     else:
         print('SET STEP TO TRAIN OR TEST ')
-        
+
     real_HE = real_HE.cpu().detach().numpy()
     fake_IHC = fake_IHC.cpu().detach().numpy()
     real_IHC = real_IHC.cpu().detach().numpy()
@@ -103,6 +103,7 @@ def discriminator_loss(self, disc, real_img, fake_img, params):
 
         # ------------------ train to discriminate fake images as fake --------------------------------
         # detach() generated image so that the grpah doesnt go through !!!! 
+        # sigmoid layer for which models as last layer ? 
         disc_pred_fake = disc(fake_img.detach()).flatten()
         disc_probablity_fake = self.sigmoid(disc_pred_fake)
 
@@ -141,6 +142,7 @@ def generator_loss(self, disc, fake_img, params):
     # fake_img ---------> fake HE or IHC img 
     # params -----------> training parameters 
     if 'gan_loss' in params['total_loss_comp']:
+        # sigmoid layer for which models as last layer ? 
         disc_pred_fake = disc(fake_img.detach()).flatten()
         disc_probablity_fake = self.sigmoid(disc_pred_fake)
 
@@ -149,10 +151,10 @@ def generator_loss(self, disc, fake_img, params):
 
 
 
-    elif'wgan_loss'in self.params['total_loss_comp']:
-        loss_gen= -1. * torch.mean(self.disc(fake_img.detach()))
+    elif'wgan_loss_gp'in self.params['total_loss_comp'] or 'wgan_loss'in self.params['total_loss_comp'] :
+        loss_gen=  torch.mean(self.disc(fake_img.detach()))
 
     else :
-        print('CHOOSE gan_loss OR wgan_loss  IN total_loss_comp IN THE YAML FILE' )
+        print('CHOOSE gan_loss OR wgan_loss OR wgan_loss_gp  IN total_loss_comp IN THE YAML FILE' )
  
     return loss_gen
