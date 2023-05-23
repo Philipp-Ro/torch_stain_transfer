@@ -10,6 +10,7 @@ from torchmetrics import StructuralSimilarityIndexMeasure
 from torchmetrics import PeakSignalNoiseRatio
 #from time import Timer
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 class model(torch.nn.Module):
     def __init__(self,params, generator_G, generator_F, discriminator_X, discriminator_Y, disc_optimizer, gen_optimizer):
@@ -44,6 +45,8 @@ class model(torch.nn.Module):
 
     def fit(self):
         Tensor = torch.cuda.FloatTensor
+        disc_loss_list = []
+        gen_loss_list = []
         k=0
         for epoch in range(self.params['num_epochs']):
                 
@@ -203,6 +206,8 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
+                disc_loss_list.append(loss_disc_print.item())
+                gen_loss_list.append(loss_gen_total.item())
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
@@ -214,6 +219,17 @@ class model(torch.nn.Module):
                 epoch_name = 'gen_G_weights_'+str(epoch)
 
                 torch.save(self.gen_G.state_dict(),os.path.join(output_folder_path,epoch_name ) )
+
+        x=np.arange(len(gen_loss_list))
+        plt.subplot(2, 1, 1)
+        plt.plot(x,disc_loss_list)
+        plt.title("DISC_LOSS")
+
+        plt.subplot(2, 1, 2)
+        plt.plot(x,gen_loss_list)
+        plt.title("GEN_LOSS")
+
+        plt.savefig(os.path.join(output_folder_path,'loss_graphs'))
               
         return self.gen_G, self.gen_F, self.disc_X, self.disc_Y
 

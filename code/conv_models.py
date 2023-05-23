@@ -108,18 +108,24 @@ class Discriminator(nn.Module):
         for _ in range(disc_step_num):
             out_channels = channels * disc_filter_groth
             self.down += [
-                nn.Conv2d(channels, out_channels, 3, stride=2, padding=1),
+                nn.Conv2d(channels, out_channels, kernel_size = 4, stride=2, padding=0),
                 nn.InstanceNorm2d(out_channels),
                 nn.ReLU(inplace=True),
             ]
             channels = out_channels
         self.down = nn.Sequential(*self.down)
+
+        self.conv_2 = nn.Conv2d(channels, 1, kernel_size = 2, stride=2, padding=0)
         
+        self.mlp = nn.Linear(49,1)
         self.sigmoid = nn.Sigmoid()
 
 
     def forward(self, x):
         x = self.conv(x)
         x = self.down(x)
-        out = self.sigmoid(x)
+        x = self.conv_2(x)
+        x = x.view(x.shape[0],-1)
+        out = self.mlp(x)
+        #out = self.sigmoid(x)
         return out

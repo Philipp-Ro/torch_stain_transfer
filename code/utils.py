@@ -4,7 +4,7 @@ import numpy as np
 import os
 from torchvision import transforms
 import torch 
-
+import torch.nn as nn
 
 def get_config_from_yaml(config_path):
     with open(file=config_path, mode='r') as param_file:
@@ -21,7 +21,7 @@ def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name,step,epoch):
     if step == 'train' :
         fig_name = 'Train_plot_'+ img_name[0]+ str(epoch)+'.png'
 
-    elif step == 'test':
+    if step == 'test':
         fig_name = 'Test_plot_'+ img_name[0]+ '.png'
     else:
         print('SET STEP TO TRAIN OR TEST ')
@@ -60,6 +60,7 @@ def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name,step,epoch):
 
 
 def denomalise(mean,std,img):
+    
     unorm = transforms.Normalize(mean=[-mean[0]/std[0], -mean[1]/std[1], -mean[2]/std[2]],
                              std=[1/std[0], 1/std[1], 1/std[2]])
     
@@ -98,29 +99,45 @@ def discriminator_loss(self, disc, real_img, fake_img, params):
     # real_img ---------> real HE or IHC img 
     # fake_img ---------> fake HE or IHC img 
     # params -----------> training parameters 
-                  
+    label_real = torch.cuda.FloatTensor(np.ones((real_img.size(0))))
+    label_fake = torch.cuda.FloatTensor(np.zeros((fake_img.size(0)))) 
+
     if 'gan_loss' in params['total_loss_comp']:
 
-        # ------------------ train to discriminate fake images as fake --------------------------------
+        # ------------------ train to discriminator --------------------------------
         # detach() generated image so that the grpah doesnt go through !!!! 
         # sigmoid layer for which models as last layer ? 
-        disc_pred_fake = disc(fake_img.detach()).flatten()
-        disc_probablity_fake = self.sigmoid(disc_pred_fake)
+        # disc_pred_fake = disc(fake_img.detach()).flatten()
+        # disc_probablity_fake = self.sigmoid(disc_pred_fake)
+        loss_total = 0
 
-        loss_fake = self.criterion_GAN(disc_probablity_fake, self.fake) 
-        loss_fake_scaled = loss_fake*params['disc_lambda']
-
-        # ------------------ train to discriminate real images as real --------------------------------
+        disc_pred_fake = disc(fake_img).flatten()
         disc_pred_real = disc(real_img).flatten()
-        disc_probablity_real = self.sigmoid(disc_pred_real)
 
-        loss_real = self.criterion_GAN(disc_probablity_real, self.valid) 
-        loss_real_scaled = loss_real *params['disc_lambda']
+        fake_validity = nn.Sigmoid()(disc_pred_fake.view(-1))
+        real_validity = nn.Sigmoid()(disc_pred_real.view(-1))
+
+        d_fake_loss = nn.BCELoss()(fake_validity, label_fake)
+        d_real_loss = nn.BCELoss()(real_validity, label_real)
+
+        loss_fake_scaled = d_fake_loss*params['disc_lambda']
+        loss_real_scaled = d_real_loss *params['disc_lambda']
      
         # ------------------ combine losses for total loss ---------------------------------------------
         loss_total = (loss_real_scaled+loss_fake_scaled)/2
-     
 
+    elif 'MSE_loss'in params['total_loss_comp']:
+
+        loss_total = 0
+
+        disc_pred_fake = disc(fake_img).flatten()
+        disc_pred_real = disc(real_img).flatten()
+
+        d_fake_loss = nn.MSELoss()(disc_pred_fake, label_fake)
+        d_real_loss = nn.MSELoss()(disc_pred_real, label_real)
+
+
+        loss_total += d_real_loss + d_fake_loss
                     
     elif'wgan_loss_gp'in params['total_loss_comp'] or 'wgan_loss' in params['total_loss_comp']:
         # https://jonathan-hui.medium.com/gan-wasserstein-gan-wgan-gp-6a1a2aa1b490
@@ -141,19 +158,28 @@ def generator_loss(self, disc, fake_img, params):
     # disc -------------> initialized Discriminator model
     # fake_img ---------> fake HE or IHC img 
     # params -----------> training parameters 
+    label_real = torch.cuda.FloatTensor(np.ones((real_img.size(0))))
+    label_fake = torch.cuda.FloatTensor(np.zeros((fake_img.size(0)))) 
     if 'gan_loss' in params['total_loss_comp']:
+        loss_gen = 0
         # sigmoid layer for which models as last layer ? 
-        disc_pred_fake = disc(fake_img.detach()).flatten()
-        disc_probablity_fake = self.sigmoid(disc_pred_fake)
+        disc_pred_fake = disc(fake_img).flatten()
+        fake_validity = nn.Sigmoid()(disc_pred_fake.view(-1))
 
-        loss_gen = self.criterion_GAN(disc_probablity_fake, self.valid) 
+        loss_gen = nn.BCELoss()(fake_validity.view(-1), label_real)
+
         loss_gen = self.params['generator_lambda']*loss_gen
 
-
+    elif 'MSE_loss'in params['total_loss_comp']:
+        loss_gen = 0
+        disc_pred_fake = disc(fake_img).flatten()
+        loss_gen = nn.MSELoss()(disc_pred_fake, label_real)
+        loss_gen = self.params['generator_lambda']*loss_gen
 
     elif'wgan_loss_gp'in self.params['total_loss_comp'] or 'wgan_loss'in self.params['total_loss_comp'] :
+        loss_gen = 0
         loss_gen=  torch.mean(self.disc(fake_img.detach()))
-
+        loss_gen = self.params['generator_lambda']*loss_gen
     else :
         print('CHOOSE gan_loss OR wgan_loss OR wgan_loss_gp  IN total_loss_comp IN THE YAML FILE' )
  

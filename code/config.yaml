@@ -31,7 +31,7 @@ preprocess_IHC : ['normalise']
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_03'
+output_folder : 'Test_02'
 model_name : 'gen_G_weights_final.pth'
 
 #----------------------------------------------------------------------------------------------
@@ -39,8 +39,8 @@ model_name : 'gen_G_weights_final.pth'
 #----------------------------------------------------------------------------------------------
 # set Generator architecture and Discriminator architecture
 # options are: 'trans' or 'conv'
-gen_architecture : 'conv'
-disc_architecture: 'conv'
+gen_architecture : 'trans'
+disc_architecture: 'trans'
 # set frame architecture 
 # otions are: 'cycleGan' or 'Gan'
 frame_architecture: 'Gan'
@@ -72,9 +72,10 @@ identity_lambda : .4
 #   'wgan_loss'---------> wasserstein loss weight clipping -----> set disc_iterations and weight clipping 
 #   'ssim' -------------> SSIM loss (1-ssim(fake,real))
 #   'psnr' -------------> PSNR loss
+#   'MSE_loss' ---------> MSE between valid and disc output 
 
-total_loss_comp : ['wgan_loss']
-disc_iterations : 4 
+total_loss_comp : ['gan_loss']
+disc_iterations : 4
 weight_clipping : 0.01 
 # ---------------------------- 'CONV' ARCHITECTURE ---------------------------------------------
 num_gen_filters : 32   # num generator filters 
@@ -90,11 +91,11 @@ disc_step_num : 4
 
 # ---------------------------- 'TRANS' ARCHITECTURE --------------------------------------------
 num_heads_gen : 4
-patch_size_gen : [32,32]
+patch_size_gen : [16,16]
 num_blocks_gen : 4   
 
 num_heads_disc : 4
-patch_size_disc : [32,32]
+patch_size_disc : [16,16]
 num_blocks_disc : 4 
 
 

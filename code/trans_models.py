@@ -246,6 +246,9 @@ class Discriminator(nn.Module):
             nn.Linear(self.embedding_dim, 1),
         )
 
+        self.sigmoid = nn.Sigmoid()
+
+
     def forward(self, x):
         n, c, h, w = x.shape
         # input image x = [N, C, H, W]
@@ -273,6 +276,7 @@ class Discriminator(nn.Module):
        
         # apply mlp
         out = self.mlp(out)
+        #out = self.sigmoid(out)
         return out
     
 

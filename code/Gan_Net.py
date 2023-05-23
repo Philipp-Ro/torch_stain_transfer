@@ -81,7 +81,7 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 # Train Generator
                 # -----------------------------------------------------------------------------------------
-                fake_IHC = self.gen(real_HE) 
+                fake_IHC = self.gen(real_HE).detach()
                 loss_gen_total = 0
 
                 loss_gen = utils.generator_loss(self, 
@@ -90,7 +90,7 @@ class model(torch.nn.Module):
                                                 params = self.params)
                 
                 loss_gen_total = loss_gen_total + loss_gen
-
+                
                 # denormalise images 
                 unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
                 unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
@@ -180,12 +180,12 @@ class model(torch.nn.Module):
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
                 #saves losses in list 
-                disc_loss_list.append(loss_disc_print)
-                gen_loss_list.append(loss_gen_total)
+                disc_loss_list.append(loss_disc_print.item())
+                gen_loss_list.append(loss_gen_total.item())
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
-                    train_loop.set_postfix( Gen_loss = loss_gen_total, disc_loss = loss_disc_print)
+                    train_loop.set_postfix( Gen_loss = loss_gen_total.item(), disc_loss = loss_disc_print.item())
             k = k+1
             # -------------------------- saving models after each 5 epochs --------------------------------
             if epoch % 5 == 0:
