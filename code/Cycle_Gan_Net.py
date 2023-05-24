@@ -93,8 +93,8 @@ class model(torch.nn.Module):
                 # output shape [1, in_channels, img_size, img_size]
                 
 
-                fake_IHC = self.gen_G(real_HE) 
-                fake_HE = self.gen_F(real_IHC)
+                fake_IHC = self.gen_G(real_HE).detach()
+                fake_HE = self.gen_F(real_IHC).detach()
    
 
                 # --------------------------- Calculate losses ---------------------------------------------
@@ -103,11 +103,13 @@ class model(torch.nn.Module):
                     loss_gen_G = utils.generator_loss(self, 
                                                 disc = self.disc_Y,
                                                 fake_img = fake_IHC,
+                                                real_img= real_HE,
                                                 params = self.params)
                     
                     loss_gen_F = utils.generator_loss(self, 
                                                 disc = self.disc_X,
                                                 fake_img = fake_HE,
+                                                real_img=real_HE,
                                                 params = self.params)
                     
                     loss_gen_total = (loss_gen_G + loss_gen_F)/2
@@ -135,8 +137,19 @@ class model(torch.nn.Module):
 
                     loss_psnr = (self.params['psnr_lambda']*loss_psnr)
                     loss_gen_total = loss_gen_total + loss_psnr
-                #
 
+                # hist_loss
+                if 'hist_loss' in self.params['total_loss_comp']:
+                    hist_loss_HE = utils.hist_loss(self,
+                                                   real_img = real_HE,
+                                                   fake_img= fake_HE )
+                    
+                    hist_loss_IHC = utils.hist_loss(self,
+                                                   real_img = real_IHC,
+                                                   fake_img= fake_IHC )
+                    
+                    hist_loss = (hist_loss_HE + hist_loss_IHC)/2
+                    loss_gen_total = loss_gen_total + hist_loss
 
                 # Identity Loss 
                 loss_id_HE = self.criterion_identity(self.gen_F(real_IHC), real_IHC) 
@@ -211,7 +224,7 @@ class model(torch.nn.Module):
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
-                    train_loop.set_postfix(loss_gen=loss_gen_print, loss_disc = loss_disc_total)
+                    train_loop.set_postfix(loss_gen=loss_gen_print.item(), loss_disc = loss_disc_total.item())
             k = k+1
             # -------------------------- saving models after each 10 epochs --------------------------------
             if epoch % 10 == 0:

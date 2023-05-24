@@ -117,7 +117,7 @@ class Discriminator(nn.Module):
 
         self.conv_2 = nn.Conv2d(channels, 1, kernel_size = 2, stride=2, padding=0)
         
-        self.mlp = nn.Linear(49,1)
+        self.mlp = nn.Linear(961,1)
         self.sigmoid = nn.Sigmoid()
 
 

@@ -6,7 +6,7 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 5
+num_epochs : 2
 decay_epoch : 5
 batch_size : 1
 # the preprocess list will determin the preprocesscing for each image HE/IHC before it will enter the network in tzraining 
@@ -31,7 +31,7 @@ preprocess_IHC : ['normalise']
 
 # output save dirs
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Test_02'
+output_folder : 'cycle_GAN_conv_3'
 model_name : 'gen_G_weights_final.pth'
 
 #----------------------------------------------------------------------------------------------
@@ -39,11 +39,11 @@ model_name : 'gen_G_weights_final.pth'
 #----------------------------------------------------------------------------------------------
 # set Generator architecture and Discriminator architecture
 # options are: 'trans' or 'conv'
-gen_architecture : 'trans'
-disc_architecture: 'trans'
+gen_architecture : 'conv'
+disc_architecture: 'conv'
 # set frame architecture 
 # otions are: 'cycleGan' or 'Gan'
-frame_architecture: 'Gan'
+frame_architecture: 'cycleGan'
 
 # --------------------- Optemizer settings -----------------------------------------------------
 # learningrate
@@ -57,7 +57,7 @@ beta2 : 0.999
 # --------------------- hyperparameter for [ Discriminator | Generator | SSIM | PSNR ] ----------
 # set CycleGAN loss hyperparameter
 generator_lambda : 1
-disc_lambda : 1
+disc_lambda : 10
 ssim_lambda : 3
 psnr_lambda : 0.05
 
@@ -73,30 +73,31 @@ identity_lambda : .4
 #   'ssim' -------------> SSIM loss (1-ssim(fake,real))
 #   'psnr' -------------> PSNR loss
 #   'MSE_loss' ---------> MSE between valid and disc output 
+#   'hist_loss' --------> compares histograms of the image channels and compares intersection of ral vs fake image 
 
-total_loss_comp : ['gan_loss']
+total_loss_comp : ['gan_loss','ssim','hist_loss']
 disc_iterations : 4
 weight_clipping : 0.01 
 # ---------------------------- 'CONV' ARCHITECTURE ---------------------------------------------
-num_gen_filters : 32   # num generator filters 
+num_gen_filters : 32  # num generator filters 
 U_net_filter_groth : 2 # U net filter groth
 U_net_step_num : 2
 num_resnet : 9  
 
 
-disc_filter_groth : 4
-hidden_dim : 16
-disc_step_num : 4
+disc_filter_groth : 2
+hidden_dim : 32
+disc_step_num : 2
 
 
 # ---------------------------- 'TRANS' ARCHITECTURE --------------------------------------------
-num_heads_gen : 4
-patch_size_gen : [16,16]
-num_blocks_gen : 4   
+num_heads_gen : 2
+patch_size_gen : [32,32]
+num_blocks_gen : 2
 
-num_heads_disc : 4
-patch_size_disc : [16,16]
-num_blocks_disc : 4 
+num_heads_disc : 2
+patch_size_disc : [32,32]
+num_blocks_disc : 2
 
 
 #-----------------------------------------------------------------------------------------------

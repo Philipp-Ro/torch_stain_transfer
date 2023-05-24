@@ -75,8 +75,8 @@ class model(torch.nn.Module):
             for i, (real_HE, real_IHC,img_name) in train_loop :
 
                 # Adversarial ground truths
-                self.valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
-                self.fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
+                #self.valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
+                #self.fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
                 
                 # -----------------------------------------------------------------------------------------
                 # Train Generator
@@ -86,6 +86,7 @@ class model(torch.nn.Module):
 
                 loss_gen = utils.generator_loss(self, 
                                                 disc = self.disc,
+                                                real_img= real_IHC,
                                                 fake_img = fake_IHC,
                                                 params = self.params)
                 
@@ -111,6 +112,12 @@ class model(torch.nn.Module):
                     loss_psnr = (self.params['psnr_lambda']*loss_psnr)
                     loss_gen_total = loss_gen_total + loss_psnr
 
+                if 'hist_loss' in self.params['total_loss_comp']:
+                    hist_loss = utils.hist_loss(self,
+                                                   real_img = real_IHC,
+                                                   fake_img = fake_IHC )
+                    loss_gen_total = loss_gen_total + hist_loss
+
                 # ------------------------- Apply Weights ---------------------------------------------------
                 
                 self.gen_optimizer.zero_grad()
@@ -123,7 +130,7 @@ class model(torch.nn.Module):
                 # Train Discriminator
                 # ---------------------------------------------------------------------------------
                 
-                if 'gan_loss' in self.params['total_loss_comp']:
+                if 'gan_loss' in self.params['total_loss_comp'] or 'MSE_loss' in self.params['total_loss_comp']:
                     # vanilla gan with the loss function of goodfellow
                     loss_disc = utils.discriminator_loss(   self, 
                                                             disc = self.disc, 

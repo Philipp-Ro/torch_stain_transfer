@@ -21,7 +21,7 @@ def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name,step,epoch):
     if step == 'train' :
         fig_name = 'Train_plot_'+ img_name[0]+ str(epoch)+'.png'
 
-    if step == 'test':
+    elif step == 'test':
         fig_name = 'Test_plot_'+ img_name[0]+ '.png'
     else:
         print('SET STEP TO TRAIN OR TEST ')
@@ -153,7 +153,7 @@ def discriminator_loss(self, disc, real_img, fake_img, params):
 # Generators training function 
 # ---------------------------------------------------------------------------------
 
-def generator_loss(self, disc, fake_img, params):
+def generator_loss(self, disc, real_img, fake_img, params):
     # inputs:
     # disc -------------> initialized Discriminator model
     # fake_img ---------> fake HE or IHC img 
@@ -184,3 +184,23 @@ def generator_loss(self, disc, fake_img, params):
         print('CHOOSE gan_loss OR wgan_loss OR wgan_loss_gp  IN total_loss_comp IN THE YAML FILE' )
  
     return loss_gen
+
+
+def hist_loss(self,real_img, fake_img):
+    real_img = real_img.squeeze()
+    fake_img = fake_img.squeeze()
+    hist_loss_list = []
+    for c in range(self.params['in_channels']):
+
+        hist_real = torch.histc(real_img[c,:,:], bins=64, min=-5, max=5)
+        hist_real  /= hist_real .sum()
+
+        hist_fake = torch.histc(fake_img[c,:,:], bins=64, min=-5, max=5)
+        hist_fake /= hist_fake.sum()
+
+        minima = torch.minimum(hist_real, hist_fake)
+        intersection = torch.true_divide(minima.sum(), hist_fake.sum())
+        hist_loss_list.append(1-intersection)
+
+    return sum(hist_loss_list)
+        
