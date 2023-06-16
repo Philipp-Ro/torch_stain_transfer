@@ -11,7 +11,7 @@ import conv_models
 import trans_models
 
 class test_network():
-    def __init__(self,params):
+    def __init__(self,params,train_time):
         self.output_folder_path = os.path.join(params['output_path'],params['output_folder'])
         self.model_path = os.path.join(self.output_folder_path,params['model_name'])
         self.config_path =  os.path.join(self.output_folder_path,'config.yaml')
@@ -20,6 +20,7 @@ class test_network():
         self.IHC_img_dir = os.path.join(test_path,'IHC')
         self.result_dir = os.path.join(self.output_folder_path,'result.txt')
         self.params = params
+        self.train_time = train_time
 
         self.model = initialize_gen_model(params)
 
@@ -35,6 +36,7 @@ class test_network():
         result['ssim_std'] = []
         result['psnr_mean'] = []
         result['psnr_std'] = []
+        result['training_time_min'] = self.train_time
 
         for epoch in range(self.params['num_test_epochs']):
     

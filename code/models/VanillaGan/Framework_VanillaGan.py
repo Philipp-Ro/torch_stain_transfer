@@ -1,23 +1,33 @@
+# -------------------------------------------------------------------------------------------------------------------------
+# Imports
+# -------------------------------------------------------------------------------------------------------------------------
+import os, sys
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+grandparentdir = os.path.dirname(parentdir)
+sys.path.append(parentdir)
+sys.path.append(grandparentdir)
+
+import loader 
 import torch
 import os
-from torch.autograd import Variable
-import torch.optim as optim
 import numpy as np
-import loader
 from torch.utils.data import DataLoader
 import utils
 from torchmetrics import StructuralSimilarityIndexMeasure
 from torchmetrics import PeakSignalNoiseRatio
-#from time import Timer
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-
+import torch.nn as nn
+from U_net_Generator_model import U_net_Generator
+from Vanilla_Discriminator_model import Discriminator
+import torch.optim as optim
 
 class model(torch.nn.Module):
-    def __init__(self,params, generator, discriminator, disc_optimizer, gen_optimizer):
+    def __init__(self,params):
         super(model, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
-        # Initialize Gan_Net
+        # Initialize VanillaGan
         # -----------------------------------------------------------------------------------------------------------------
         # gen transfers from domain X -> Y
         #
@@ -26,20 +36,18 @@ class model(torch.nn.Module):
         # in our case:
         # Domain X = HE
         # Domain Y = IHC
-
-        self.gen = generator
-        self.disc = discriminator
-        self.disc_optimizer = disc_optimizer
-        self.gen_optimizer = gen_optimizer
+        self.disc = Discriminator(in_channels=params['in_channels'],features=params['disc_features']).to(params['device'])
+        self.gen = U_net_Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+        self.opt_disc = optim.Adam(self.disc.parameters(), lr=params['learn_rate_disc'], betas=(params['beta1'], params['beta2']))
+        self.opt_gen = optim.Adam(self.gen.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
+        self.BCE =  nn.BCELoss().to(params['device'])
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
+        self.psnr = PeakSignalNoiseRatio().to(params['device'])
         self.params = params
-        self.sigmoid = torch.nn.Sigmoid()
-        self.criterion_GAN = torch.nn.BCELoss().cuda()
-        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
-        self.psnr = PeakSignalNoiseRatio().cuda()
-
+        self.g_scaler = torch.cuda.amp.GradScaler()
+        self.d_scaler = torch.cuda.amp.GradScaler()
 
     def fit(self):
-        Tensor = torch.cuda.FloatTensor
         disc_loss_list = []
         gen_loss_list = []
 
@@ -66,30 +74,25 @@ class model(torch.nn.Module):
             train_data_loader = DataLoader(train_data, batch_size=1, shuffle=False) 
 
             if(epoch + 1) > self.params['decay_epoch']:
-                self.disc_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
-                self.gen_optimizer.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
+                self.opt_disc.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
+                self.opt_gen.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
 
  
             train_loop = tqdm(enumerate(train_data_loader), total = len(train_data_loader), leave= False)
             
             for i, (real_HE, real_IHC,img_name) in train_loop :
-
-                # Adversarial ground truths
-                #self.valid = Tensor(np.ones((real_HE.size(0)))) # requires_grad = False. Default.
-                #self.fake = Tensor(np.zeros((real_HE.size(0)))) # requires_grad = False. Default.
-                
+              
                 # -----------------------------------------------------------------------------------------
                 # Train Generator
                 # -----------------------------------------------------------------------------------------
-                fake_IHC = self.gen(real_HE).detach()
+                fake_IHC = self.gen(real_HE)
                 loss_gen_total = 0
-
-                loss_gen = utils.generator_loss(self, 
-                                                disc = self.disc,
-                                                real_img= real_IHC,
-                                                fake_img = fake_IHC,
-                                                params = self.params)
                 
+                
+                # output for disc on fake image
+                D_fake = self.disc(fake_IHC)
+                loss_gen = self.BCE(D_fake, torch.ones_like(D_fake))
+
                 loss_gen_total = loss_gen_total + loss_gen
                 
                 # denormalise images 
@@ -116,73 +119,35 @@ class model(torch.nn.Module):
                     hist_loss = utils.hist_loss(self,
                                                    real_img = real_IHC,
                                                    fake_img = fake_IHC )
+                    
+                    hist_loss = hist_loss*self.params['hist_lambda']
                     loss_gen_total = loss_gen_total + hist_loss
 
                 # ------------------------- Apply Weights ---------------------------------------------------
                 
-                self.gen_optimizer.zero_grad()
-                loss_gen_total.backward()
-                self.gen_optimizer.step()
+                self.opt_gen.zero_grad()
+                self.g_scaler.scale(loss_gen_total).backward()
+                self.g_scaler.step(self.opt_gen)
+                self.g_scaler.update()
 
-
-  
                 # ---------------------------------------------------------------------------------
                 # Train Discriminator
                 # ---------------------------------------------------------------------------------
                 
-                if 'gan_loss' in self.params['total_loss_comp'] or 'MSE_loss' in self.params['total_loss_comp']:
-                    # vanilla gan with the loss function of goodfellow
-                    loss_disc = utils.discriminator_loss(   self, 
-                                                            disc = self.disc, 
-                                                            real_img = real_IHC, 
-                                                            fake_img = fake_IHC, 
-                                                            params = self.params)
                     
-                    
+                D_real = self.disc(real_IHC)
+                D_real_loss = self.BCE(D_real, torch.ones_like(D_real))
+                D_fake = self.disc(fake_IHC.detach())
+                D_fake_loss = self.BCE(D_fake, torch.zeros_like(D_fake))
+                loss_disc = (D_real_loss + D_fake_loss) / 2
 
-                # ------------------------- Apply Weights ---------------------------------------------------
-                    loss_disc_print = loss_disc
+                loss_disc_print = loss_disc
 
-                    self.disc_optimizer.zero_grad()
-                    loss_disc.backward()
-                    self.disc_optimizer.step()
-                
-                elif'wgan_loss_gp'in self.params['total_loss_comp']:
-                    for d_iter in range(self.params['disc_iterations']):
-                        gp = utils.gradient_penalty(self.disc, real_IHC, fake_IHC)
+                self.disc.zero_grad()
+                self.d_scaler.scale(loss_disc).backward()
+                self.d_scaler.step(self.opt_disc)
+                self.d_scaler.update()
 
-                        loss_critic = utils.discriminator_loss( self, 
-                                                                disc = self.disc, 
-                                                                real_img = real_IHC, 
-                                                                fake_img = fake_IHC, 
-                                                                params = self.params)
-                        
-                        loss_critic = loss_critic + self.params['disc_lambda']*gp.detach() 
-                        
-                # ------------------------- Apply Weights ---------------------------------------------------
-                        loss_disc_print = loss_critic
-
-                        self.disc.zero_grad()
-                        loss_critic.backward()
-                        self.disc_optimizer.step()
-
-                elif'wgan_loss'in self.params['total_loss_comp']:
-                    for d_iter in range(self.params['disc_iterations']):
-
-                        loss_critic = utils.discriminator_loss( self, 
-                                                                disc = self.disc, 
-                                                                real_img = real_IHC, 
-                                                                fake_img = fake_IHC, 
-                                                                params = self.params)
-                        self.disc.zero_grad()
-                        loss_critic.backward(retain_graph=True)
-                        self.disc_optimizer.step()
-            
-
-                        for p in self.disc.parameters():
-                            p.data.clamp_(-self.params['weight_clipping'], self.params['weight_clipping'])
-
-                        loss_disc_print = loss_critic
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
@@ -222,17 +187,4 @@ class model(torch.nn.Module):
         plt.savefig(os.path.join(output_folder_path,'loss_graphs'))
 
         return self.gen, self.disc
-
-
-
-def weights_init_normal(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        torch.nn.init.normal_(m.weight.data, 0.0, 0.02) # reset Conv2d's weight(tensor) with Gaussian Distribution
-        if hasattr(m, 'bias') and m.bias is not None:
-            torch.nn.init.constant_(m.bias.data, 0.0) # reset Conv2d's bias(tensor) with Constant(0)
-        elif classname.find('InstanceNorm2d') != -1:
-            torch.nn.init.normal_(m.weight.data, 1.0, 0.02) # reset BatchNorm2d's weight(tensor) with Gaussian Distribution
-            torch.nn.init.constant_(m.bias.data, 0.0) # reset BatchNorm2d's bias(tensor) with Constant(0)
-                
 

@@ -101,7 +101,7 @@ class MSA(nn.Module):
 
 
 #-----------------------------------------------------------------------------------------------
-# VIT BLOCK
+# ViT BLOCK
 #-----------------------------------------------------------------------------------------------
 class ViT_Block(nn.Module):
     def __init__(self, hidden_d, num_heads, mlp_ratio=4):
@@ -122,16 +122,17 @@ class ViT_Block(nn.Module):
         out = x + self.mhsa(self.norm1(x))
         out = out + self.mlp(self.norm2(out))
         return out
-    
+
+
 
 #-----------------------------------------------------------------------------------------------
 # GENERATOR MODEL
 #-----------------------------------------------------------------------------------------------
 
 #
-class Generator (nn.Module):
+class ViT_Generator (nn.Module):
     def __init__(self, chw, patch_size, num_heads, num_blocks) -> None:
-        super(Generator,self).__init__()
+        super(ViT_Generator,self).__init__()
 # inputs :
 # chw ------------> size of image [num_cahnnels, hight, width]
 # patch_size -----> [w,h] : size of patch
@@ -195,99 +196,12 @@ class Generator (nn.Module):
         # change dimenstions to match input 
         out = unflatten.reshape([n,c,h,w])
         return out
-    
 
-#-----------------------------------------------------------------------------------------------
-# DISCRIMINATOR
-#-----------------------------------------------------------------------------------------------
-# https://medium.com/mlearning-ai/vision-transformers-from-scratch-pytorch-a-step-by-step-guide-96c3313c2e0c   
+def test():
+    x = torch.randn((1, 3, 256, 256)).cuda()
+    model = ViT_Generator(chw=[3,256,256], patch_size=[32,32],num_heads=4,num_blocks=4)
+    preds = model(x)
+    print(preds.shape)
 
-class Discriminator(nn.Module):
-    def __init__(self, chw, patch_size, num_heads, num_blocks, out_d=2):
-        # Super constructor
-        super(Discriminator, self).__init__()
-# inputs :
-# chw ------------> size of image [num_cahnnels, hight, width]
-# patch_size -----> [w,h] : size of patch
-# embedding_dim --> dimention of the linear projection
-# num_heads ------> number of heads in the multihead self attention (MSA class)
-# num_blocks -----> number of vision transformer blocks (ViT_Block class )
-        
-        # Attributes
-        self.chw = chw # ( C , H , W )
-        self.patch_size = patch_size
-        self.num_blocks = num_blocks
-        self.num_heads = num_heads
-        # maybe scale down with embedded_dim to hidden_dim
-        self.embedding_dim = int((chw[1]/patch_size[0])**2)
-        
-        
-        # Input and patches sizes
-        assert chw[1] % patch_size[0] == 0, "Input shape not entirely divisible by patch_size"
-        assert chw[2] % patch_size[1] == 0, "Input shape not entirely divisible by patch_size"
-        
-        
-        # 1) Patch embedding
-        self.patch_embedding = patch_embedding(in_channels=chw[0],
-                                               patch_size=self.patch_size)
-
-        # 2) Learnable classification token
-        self.class_token = nn.Parameter(torch.rand(1, self.embedding_dim))
-        
-        # 3) Positional embedding
-        self.pos_embedding = nn.Parameter(torch.tensor(get_positional_Embeddings((patch_size[0]**2)* chw[0] +1 , self.embedding_dim)))
-
-        
-        # 4) Transformer encoder blocks
-        self.blocks = nn.ModuleList([ViT_Block(self.embedding_dim, self.num_heads) for _ in range(self.num_blocks)])
-        
-        # 5) Classification MLPk
-        self.mlp = nn.Sequential(
-            nn.Linear(self.embedding_dim, 1),
-        )
-
-        self.sigmoid = nn.Sigmoid()
-
-
-    def forward(self, x):
-        n, c, h, w = x.shape
-        # input image x = [N, C, H, W]
-
-        patches = self.patch_embedding(x)
-        # P = patch_dim = (patch_size**2)* in_channels
-        # D = lossles embedding_dim = (in_width/patch_size[0])**2
-        # patches.shape = [N, P, D]
-
-        
-        tokens = torch.cat((self.class_token.expand(n, 1, -1), patches), dim=1)
-        # Adding classification token to the tokens
-        # tokens.shape = [N, P+1, D]
-
-
-        # Adding positional embedding
-        out = tokens + self.pos_embedding.repeat(n, 1, 1)
-        
-        # Transformer Blocks
-        for block in self.blocks:
-            out = block(out)
-            
-        # Getting the classification token only
-        out = out[:, 0]
-       
-        # apply mlp
-        out = self.mlp(out)
-        #out = self.sigmoid(out)
-        return out
-    
-
-def init_weights( module):
-    """ Initialize the weights """
-    if isinstance(module, (nn.Linear, nn.Conv2d)):
-            # Slightly different from the TF version which uses truncated_normal for initialization
-            # cf https://github.com/pytorch/pytorch/pull/5617
-        module.weight.data.normal_(mean=0.0, std=0.02)
-    
-    if isinstance(module, nn.LayerNorm):
-        module.bias.data.zero_()
-        module.weight.data.fill_(1.0)
-    return module
+if __name__ == "__main__":
+    test()

@@ -1,0 +1,91 @@
+# set paths for imge folder ( 2 folders corresponding images have to have the same name)
+#------------------------------------------------------------------------------------------
+# Training set_up
+#------------------------------------------------------------------------------------------
+# 
+#----------------------------- Input ------------------------------------------------------
+train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
+img_size : [256,256]
+in_channels : 3
+num_epochs : 5
+decay_epoch : 5
+batch_size : 1
+device : 'cuda'
+#
+#----------------------------- Output -----------------------------------------------------
+output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
+output_folder : 'Pix2Pix'
+model_name : 'gen_G_weights_final.pth'
+#
+#
+#------------------------------------------------------------------------------------------
+# Preprocessing
+#------------------------------------------------------------------------------------------
+# the preprocess list will determin the preprocesscing for each image HE/IHC before it will enter the network in tzraining 
+#
+# [normalise] -----> normalize the image based on the mean and std 
+# either use the costum Mean and std of the bci train set for immunohistochemical dataset or the img_net mean and std
+# use normalise_token for iether 'img_net' or 'bci'
+normalise_token : 'bci'
+mean_HE : [0.6374934061876859, 0.54221270388668, 0.6263932794073621]
+std_HE : [0.08630574808474256, 0.09923751557584395, 0.07704577263561006]
+
+mean_IHC : [0.7687480146058773, 0.7460195554334789, 0.7200858060498716]
+std_IHC : [0.05067490897275364, 0.05804296102376095, 0.06596264508250156]
+
+mean_img_net : [0.485, 0.456, 0.406] 
+std_img_net: [0.229, 0.224, 0.225]
+
+# 'grayscale' --------------> transform the image into grayscale => 3 in_channel to 1 
+# 'instance_norm' ----------> choose img_net or bci 
+# 'colorjitter' ------------> will augment the input image 
+preprocess_HE : ['normalise']
+preprocess_IHC : ['normalise']
+#
+#
+#------------------------------------------------------------------------------------------
+# Model Set up
+#------------------------------------------------------------------------------------------
+# features are the is the channeldimention for the U_net and the disc
+gen_features : 64
+disc_features : [64, 128, 256, 512]
+
+# --------------------- Optimizer Settings ------------------------------------------------
+
+learn_rate_disc : 0.0002
+learn_rate_gen : 0.0002
+# the beta1 and beta2 for the Adam optimizer used for both the total generator optimizer and total disc optimizer 
+beta1 : 0.5   
+beta2 : 0.999  
+
+# --------------------- Loss Settings -----------------------------------------------------
+# aditional losses :
+#   'ssim' -------------> SSIM loss (1-ssim(fake,real))
+#   'psnr' -------------> PSNR loss
+#   'hist_loss' --------> compares histograms of the image channels and compares intersection of ral vs fake image 
+total_loss_comp : ['ssim','hist_loss']
+#
+# Loss Hyperparameters
+generator_lambda : 1
+disc_lambda : 20
+ssim_lambda : 3
+psnr_lambda : 0.05
+hist_lambda : 10
+L1_lambda : 100
+
+#-----------------------------------------------------------------------------------------------
+# Testing
+#-----------------------------------------------------------------------------------------------
+test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
+num_test_epochs: 2
+plots_per_epoch : 2
+
+
+
+
+
+
+
+
+
+
