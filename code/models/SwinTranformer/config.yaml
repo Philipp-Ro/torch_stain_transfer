@@ -46,12 +46,29 @@ preprocess_IHC : ['normalise']
 #------------------------------------------------------------------------------------------
 # Model Set up
 #------------------------------------------------------------------------------------------
-# features are the is the channeldimention for the U_net 
-gen_features : [64, 128, 256, 512]
-
+# hidden_dim ------------>   upsacling for the cannel number 
+#                            taken from literature ===>  swin_T = 96 | swin_S = 96 | swin_B = 128 | swin_L = 192
+# layers ---------------->   layers in each stage of the transformer the input has to be an EVEN NUMBER 
+#                            taken from literature ===>  swin_T = (2, 2, 6, 2) | swin_S = (2, 2, 18, 2) | swin_B = (2, 2, 18, 2) | swin_L = (2, 2, 18, 2)
+# heads ----------------->   number of heads for the attention module
+#                            taken from literature ===>  swin_T = (3, 6, 12, 24) | swin_S = (3, 6, 12, 24) | swin_B = 4, 8, 16, 32) | swin_L = (6, 12, 24, 48)
+# in_channels ----------->   number of input channels 
+# out_channels ---------->   number of output channels
+# head_dim -------------->   ?
+# window_size ----------->   size of the patch windows has img_size % window_size has to be zero !!!
+# downscaling_factors --->   downscaling of the image in each stage here it is 1 because we done downscale
+hidden_dim : 96
+layers : [2, 2, 6, 2]
+heads : [3, 6, 12, 24]
+in_channels : 3
+out_channels : 3
+head_dim : 32
+window_size : 8
+downscaling_factors : [1, 1, 1, 1]
+relative_pos_embedding : True
 # --------------------- Optimizer Settings ------------------------------------------------
 learn_rate_gen : 0.0002
-# the beta1 and beta2 for the Adam optimizer used for both the total generator optimizer 
+# the beta1 and beta2 for the Adam optimizer used for both the total generator optimizer and total disc optimizer 
 beta1 : 0.5   
 beta2 : 0.999  
 
