@@ -65,15 +65,18 @@ class test_network():
 
             for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
                 fake_IHC = self.model(real_HE)
-                unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
-                unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
-                unnorm_real_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],real_HE)
+                if "normalise" in self.params["preprocess_IHC"]:
+                    fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
+                    real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
+
+                if "normalise" in self.params["preprocess_HE"]:
+                    real_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],real_HE)
 
                 if i in randomlist:
                   
-                    utils.plot_img_set( real_HE=unnorm_real_HE,
-                                        fake_IHC=unnorm_fake_IHC,
-                                        real_IHC=unnorm_real_IHC,
+                    utils.plot_img_set( real_HE=real_HE,
+                                        fake_IHC=fake_IHC,
+                                        real_IHC=real_IHC,
                                         i=i,
                                         params = self.params,
                                         img_name = img_name,
@@ -81,8 +84,8 @@ class test_network():
                                         epoch = epoch )
             
                 
-                ssim_scores.append(ssim(unnorm_fake_IHC, unnorm_real_IHC).item())
-                psnr_scores.append(psnr(unnorm_fake_IHC, unnorm_real_IHC).item())
+                ssim_scores.append(ssim(fake_IHC, real_IHC).item())
+                psnr_scores.append(psnr(fake_IHC, real_IHC).item())
                 
 
             result['ssim_mean'].append(np.mean(ssim_scores))
