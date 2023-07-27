@@ -1,0 +1,9 @@
+docker  images ---> shows all images build or pulled on the system 
+docker ps --------> shows all images running currently 
+docker run -d [image_name] ------> runnes image in the backgroun (-d flagg)
+docker exec [image_name] /bin/bash --------> command line inside docker 
+docker run --rm -it  torchstaintransfer  /bin/bash  ----> start a terminal in the docker container 
+
+build dockerimage on the server with dockerfile woich you pushed there 
+
+

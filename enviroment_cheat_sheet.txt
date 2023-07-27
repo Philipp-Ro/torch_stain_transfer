@@ -1,5 +1,6 @@
 python -m venv env (creating env)
 env\Scripts\activate (activate env)
+pip freeze > requirements.txt (make requirements.txt)
 
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
 pip3 install matplotlib
@@ -18,4 +19,7 @@ pip install torch-summary
 
 pip install torchmetrics
 
- pip install tqdm
+pip install tqdm
+
+
+pip reqs ?

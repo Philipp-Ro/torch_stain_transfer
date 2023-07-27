@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'VanillaGan'
+output_folder : 'Simple_U_net'
 model_name : 'gen_G_weights_final.pth'
 #
 #
