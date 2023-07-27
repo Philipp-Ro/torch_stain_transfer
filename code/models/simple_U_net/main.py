@@ -10,6 +10,7 @@ import torch
 import Framework_U_net
 import time
 from pathlib import Path
+from U_net_Generator_model import U_net_Generator
 # --------------------------- load Parameters from config ----------------------------------
 config_path = os.path.join(Path.cwd(),'code\\models\\simple_U_net\\config.yaml')
 params = utils.get_config_from_yaml(config_path)
@@ -36,5 +37,8 @@ torch.save(gen.state_dict(), model_path)
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-model_testing = eval.test_network(params,training_time)
+
+model = U_net_Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+
+model_testing = eval.test_network(model,params,training_time)
 model_testing.fit()

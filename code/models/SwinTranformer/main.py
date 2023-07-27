@@ -10,6 +10,8 @@ import torch
 import Framework_SwinTransformer
 import time
 from pathlib import Path
+from SwinTransformer_model import SwinTransformer
+
 # --------------------------- load Parameters from config ----------------------------------
 config_path = os.path.join(Path.cwd(),'code\\models\\SwinTransformer\\config.yaml')
 params = utils.get_config_from_yaml(config_path)
@@ -36,5 +38,16 @@ torch.save(gen.state_dict(), model_path)
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-model_testing = eval.test_network(params,training_time)
+model = SwinTransformer( hidden_dim=params['hidden_dim'], 
+                                    layers=params['layers'], 
+                                    heads=params['heads'], 
+                                    in_channels=params['in_channels'], 
+                                    out_channels=params['out_channels'], 
+                                    head_dim=params['head_dim'], 
+                                    window_size=params['window_size'],
+                                    downscaling_factors=params['dowscaling_factors'], 
+                                    relative_pos_embedding=params['relative_pos_embedding']
+                                    ).to(params['device'])
+
+model_testing = eval.test_network(model,params,training_time)
 model_testing.fit()

@@ -7,11 +7,10 @@ import loader
 import numpy as np
 import random
 import utils
-import conv_models
-import trans_models
+
 
 class test_network():
-    def __init__(self,params,train_time):
+    def __init__(self,model,params,train_time):
         self.output_folder_path = os.path.join(params['output_path'],params['output_folder'])
         self.model_path = os.path.join(self.output_folder_path,params['model_name'])
         self.config_path =  os.path.join(self.output_folder_path,'config.yaml')
@@ -22,7 +21,7 @@ class test_network():
         self.params = params
         self.train_time = train_time
 
-        self.model = initialize_gen_model(params)
+        self.model = model
 
 
     def fit(self):
@@ -102,23 +101,6 @@ class test_network():
         f.close()
 
 
-def initialize_gen_model(params):
-    if params['gen_architecture'] == 'conv':
-        gen_test = conv_models.Generator( in_channels= params['in_channels'],
-                                                num_residual_blocks = params['num_resnet'],
-                                                U_net_filter_groth = params['U_net_filter_groth'],
-                                                hidden_dim= params['hidden_dim'],
-                                                U_net_step_num = params['U_net_step_num']
-                                            )
-        
-    if params['gen_architecture'] == 'trans':
-        gen_test = trans_models.Generator(
-                                      chw = [params['in_channels']]+params['img_size'], 
-                                      patch_size = params['patch_size_gen'],
-                                      num_heads = params['num_heads_gen'], 
-                                      num_blocks = params['num_blocks_gen'])
-    gen_test = gen_test.cuda()
 
-    return gen_test
 
 

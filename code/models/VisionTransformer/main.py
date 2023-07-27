@@ -10,6 +10,7 @@ import torch
 import Framework_ViT
 import time
 from pathlib import Path
+from ViT_model import ViT_Generator
 # --------------------------- load Parameters from config ----------------------------------
 config_path = os.path.join(Path.cwd(),'code\\models\\VisionTransformer\\config.yaml')
 params = utils.get_config_from_yaml(config_path)
@@ -36,5 +37,12 @@ torch.save(gen.state_dict(), model_path)
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-model_testing = eval.test_network(params,training_time)
+
+model = ViT_Generator(   chw = [params['in_channels']]+params['img_size'], 
+                                    patch_size = params['patch_size'],
+                                    num_heads = params['num_heads'], 
+                                    num_blocks = params['num_blocks']
+                                    ).to(params['device'])
+
+model_testing = eval.test_network(model,params,training_time)
 model_testing.fit()
