@@ -42,7 +42,7 @@ class model(torch.nn.Module):
                                     out_channels=params['out_channels'], 
                                     head_dim=params['head_dim'], 
                                     window_size=params['window_size'],
-                                    downscaling_factors=params['dowscaling_factors'], 
+                                    downscaling_factors=params['downscaling_factors'], 
                                     relative_pos_embedding=params['relative_pos_embedding']
                                     ).to(params['device'])
         
@@ -97,14 +97,15 @@ class model(torch.nn.Module):
                 loss_gen = self.MSE_LOSS(real_IHC, fake_IHC.detach())
 
                 loss_gen_total = loss_gen_total + loss_gen
-                
-                # denormalise images 
-                unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
-                unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
+
+                if "normalise" in self.params["preprocess_IHC"]:
+                    # denormalise images 
+                    fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
+                    real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
                 
                 # ssim loss 
                 if 'ssim' in self.params['total_loss_comp']:
-                    ssim_IHC = self.ssim(unnorm_fake_IHC, unnorm_real_IHC)
+                    ssim_IHC = self.ssim(fake_IHC, real_IHC)
                     loss_ssim = 1-ssim_IHC
 
                     loss_ssim = (self.params['ssim_lambda']*loss_ssim)
@@ -112,7 +113,7 @@ class model(torch.nn.Module):
 
                 # psnr loss 
                 if 'psnr' in self.params['total_loss_comp']:
-                    psnr_IHC = self.psnr(unnorm_fake_IHC, unnorm_real_IHC)
+                    psnr_IHC = self.psnr(fake_IHC, real_IHC)
                     loss_psnr = psnr_IHC 
 
                     loss_psnr = (self.params['psnr_lambda']*loss_psnr)
@@ -149,8 +150,8 @@ class model(torch.nn.Module):
                 epoch_name = 'gen_G_weights_'+str(epoch)
 
                 utils.plot_img_set( real_HE = real_HE,
-                                    fake_IHC=unnorm_fake_IHC,
-                                    real_IHC=unnorm_real_IHC,
+                                    fake_IHC=fake_IHC,
+                                    real_IHC=real_IHC,
                                     i=i,
                                     params = self.params,
                                     img_name = img_name,
@@ -160,13 +161,9 @@ class model(torch.nn.Module):
                 torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
 
         x=np.arange(len(gen_loss_list))
-        plt.subplot(2, 1, 1)
-        plt.plot(x,disc_loss_list)
-        plt.title("DISC_LOSS")
 
-        plt.subplot(2, 1, 2)
         plt.plot(x,gen_loss_list)
-        plt.title("GEN_LOSS")
+        plt.title("Swin_LOSS")
 
         plt.savefig(os.path.join(output_folder_path,'loss_graphs'))
 

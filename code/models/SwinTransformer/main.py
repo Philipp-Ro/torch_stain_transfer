@@ -20,7 +20,7 @@ params = utils.get_config_from_yaml(config_path)
 model = Framework_SwinTransformer.model(params=params)
 # --------------------------- Train Network ------------------------------------------------
 start = time.time()
-gen, disc = model.fit()
+gen = model.fit()
 stop = time.time()
 
 

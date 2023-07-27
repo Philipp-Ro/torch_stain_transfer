@@ -90,7 +90,7 @@ class model(torch.nn.Module):
                 fake_IHC = self.gen(real_HE)
                 loss_gen_total = 0
                 
-                loss_gen = self.MSE_LOSS(real_IHC, fake_IHC.detach())
+                loss_gen = self.MSE_LOSS(real_IHC, fake_IHC)
 
                 loss_gen_total = loss_gen_total + loss_gen
 
@@ -157,15 +157,11 @@ class model(torch.nn.Module):
                 torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
 
         x=np.arange(len(gen_loss_list))
-        plt.subplot(2, 1, 1)
-        plt.plot(x,disc_loss_list)
-        plt.title("DISC_LOSS")
-
-        plt.subplot(2, 1, 2)
+  
         plt.plot(x,gen_loss_list)
-        plt.title("GEN_LOSS")
+        plt.title("ViT_LOSS")
 
-        plt.savefig(os.path.join(output_folder_path,'loss_graphs'))
+        plt.savefig(os.path.join(output_folder_path,'ViT_loss_graph'))
 
         return self.gen 
 
