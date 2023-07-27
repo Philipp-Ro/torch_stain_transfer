@@ -93,14 +93,15 @@ class model(torch.nn.Module):
                 loss_gen = self.MSE_LOSS(real_IHC, fake_IHC.detach())
 
                 loss_gen_total = loss_gen_total + loss_gen
-                
-                # denormalise images 
-                unnorm_fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
-                unnorm_real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
+
+                if "normalise" in self.params["preprocess_IHC"]:
+                    # denormalise images 
+                    fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
+                    real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
                 
                 # ssim loss 
                 if 'ssim' in self.params['total_loss_comp']:
-                    ssim_IHC = self.ssim(unnorm_fake_IHC, unnorm_real_IHC)
+                    ssim_IHC = self.ssim(fake_IHC, real_IHC)
                     loss_ssim = 1-ssim_IHC
 
                     loss_ssim = (self.params['ssim_lambda']*loss_ssim)
@@ -108,7 +109,7 @@ class model(torch.nn.Module):
 
                 # psnr loss 
                 if 'psnr' in self.params['total_loss_comp']:
-                    psnr_IHC = self.psnr(unnorm_fake_IHC, unnorm_real_IHC)
+                    psnr_IHC = self.psnr(fake_IHC, real_IHC)
                     loss_psnr = psnr_IHC 
 
                     loss_psnr = (self.params['psnr_lambda']*loss_psnr)
@@ -145,8 +146,8 @@ class model(torch.nn.Module):
                 epoch_name = 'gen_G_weights_'+str(epoch)
 
                 utils.plot_img_set( real_HE = real_HE,
-                                    fake_IHC=unnorm_fake_IHC,
-                                    real_IHC=unnorm_real_IHC,
+                                    fake_IHC=fake_IHC,
+                                    real_IHC=real_IHC,
                                     i=i,
                                     params = self.params,
                                     img_name = img_name,
