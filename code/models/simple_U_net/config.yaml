@@ -7,8 +7,8 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 1
-decay_epoch : 5
+num_epochs : 100
+decay_epoch : 80
 batch_size : 1
 device : 'cuda'
 #
@@ -73,8 +73,8 @@ hist_lambda : 10
 # Testing
 #-----------------------------------------------------------------------------------------------
 test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
-num_test_epochs: 2
-plots_per_epoch : 2
+num_test_epochs: 10
+plots_per_epoch : 1
 
 
 

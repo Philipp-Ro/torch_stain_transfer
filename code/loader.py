@@ -7,6 +7,16 @@ from PIL import Image
 import torchvision.transforms as transforms
 import numpy as np
 import torchvision.transforms.functional as fn
+# -------------------------------------------------------------------------------------------------------------------------
+# Loader
+# -------------------------------------------------------------------------------------------------------------------------
+# the loader will load the BCI images and give out a list of (real_HE, real_IHC, img_name)
+# the values if NO preprocessing will have a VALUE_RANGE of [0....1]
+# preprocessing options are:
+# 'normalise' with eiether bci or img_net token will normalize the image data to mean()=0 and std()=1 according to the bci datast or the imagenet dataset
+# 'colorjitter' will apply a colorjitter
+# 'grayscale' will transform the images into black and white
+
 
 class stain_transfer_dataset(Dataset):
     def __init__(self,img_patch, HE_img_dir,IHC_img_dir,params):
@@ -81,7 +91,7 @@ def preprocess_img(self,preprocess_list, img_tensor, img_class):
         if self.params['normalise_token'] == 'img_net':
             mean = self.params['mean_img_net']
             std = self.params['std_img_net']
-        else:
+        if self.params['normalise_token'] == 'bci':
 
             if img_class == 'HE':
             # the mean and std where calculated from the train data of the bci data set 
@@ -98,6 +108,9 @@ def preprocess_img(self,preprocess_list, img_tensor, img_class):
                 std = self.params['std_IHC']
 
                 transform_list.append(transforms.Normalize(mean, std))
+
+        if self.params['normalise_token'] == 'minus_plus_1':
+            transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
 
     if "colorjitter" in preprocess_list:
         transform_list.append(transforms.ColorJitter(brightness=(0.7,1), contrast = (1,3), saturation=(0.7,1.3), hue=(-0.1,0.1)))
