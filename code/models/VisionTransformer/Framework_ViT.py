@@ -19,7 +19,7 @@ from torchmetrics import PeakSignalNoiseRatio
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from ViT_model import ViT_Generator
+from stacked_ViT import ViT_Generator
 import torch.optim as optim
 
 class model(torch.nn.Module):
@@ -38,7 +38,10 @@ class model(torch.nn.Module):
         self.gen = ViT_Generator(   chw = [params['in_channels']]+params['img_size'], 
                                     patch_size = params['patch_size'],
                                     num_heads = params['num_heads'], 
-                                    num_blocks = params['num_blocks']
+                                    num_blocks = params['num_blocks'],
+                                    attention_dropout = params['attention_dropout'], 
+                                    dropout= params['dropout'],
+                                    mlp_ratio=params['mlp_ratio']
                                     ).to(params['device'])
         
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
@@ -90,7 +93,7 @@ class model(torch.nn.Module):
                 loss_gen_total = 0
                 
                 loss_gen = self.MSE_LOSS(real_IHC, fake_IHC)
-
+                loss_gen = self.params['generator_lambda'] * loss_gen
                 loss_gen_total = loss_gen_total + loss_gen
 
                 if "normalise" in self.params["preprocess_IHC"]:

@@ -1,61 +1,58 @@
-# -------------------------------------------------------------------------------------------------------------------------
-# Generator based on U-net 
-# -------------------------------------------------------------------------------------------------------------------------
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+#-----------------------------------------------------------------------------------------------
+# MULTIHEAD SELF ATTENTION
+#-----------------------------------------------------------------------------------------------
+# 1) each patch [N ,P, embedding_dim] is mapped to 3 distinct vectors: q, k, and v (query, key, value)
+# 2) for each patch, compute the dot product between its q vector with all of the k vectors, divide by the square root of the dimensionality of these vectors [sqrt(embedding_dim)]
+#       ---> these are called attention cues
+# 3) softmax(attention cues) --> sum(attention cues) = 1
+# 4) multiply each attention cue with the v vectors associated with the different k vectors and sum all up
+# 5) carry out num_head times 
+#
+# embedding_dim % num_head has to be 0 !!
+
+class MSA(nn.Module):
+    def __init__(self, d, num_heads=2):
+        super(MSA, self).__init__()
+        self.d = d
+        self.num_heads = num_heads
+
+        assert d % num_heads == 0, f"Can't divide dimension {d} into {num_heads} heads"
+
+        d_head = int(d / num_heads)
+        self.q_mappings = nn.ModuleList([nn.Linear(d_head, d_head) for _ in range(self.num_heads)])
+        self.k_mappings = nn.ModuleList([nn.Linear(d_head, d_head) for _ in range(self.num_heads)])
+        self.v_mappings = nn.ModuleList([nn.Linear(d_head, d_head) for _ in range(self.num_heads)])
+        self.d_head = d_head
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, sequences):
+        # Sequences has shape (N, seq_length, token_dim)
+        # We go into shape    (N, seq_length, n_heads, token_dim / n_heads)
+        # And come back to    (N, seq_length, item_dim)  (through concatenation)
+        result = []
+        for sequence in sequences:
+            seq_result = []
+            for head in range(self.num_heads):
+                q_mapping = self.q_mappings[head]
+                k_mapping = self.k_mappings[head]
+                v_mapping = self.v_mappings[head]
+
+                seq = sequence[:, head * self.d_head: (head + 1) * self.d_head]
+                q, k, v = q_mapping(seq), k_mapping(seq), v_mapping(seq)
+
+                attention = self.softmax(q @ k.T / (self.d_head ** 0.5))
+                seq_result.append(attention @ v)
+            result.append(torch.hstack(seq_result))
+        return torch.cat([torch.unsqueeze(r, dim=0) for r in result])
 
 
-class EMA:
-    def __init__(self, beta):
-        super().__init__()
-        self.beta = beta
-        self.step = 0
+# -------------------------------------------------------------------------------------------------------------------------
+# Generator based on U-net 
+# -------------------------------------------------------------------------------------------------------------------------
 
-    def update_model_average(self, ma_model, current_model):
-        for current_params, ma_params in zip(current_model.parameters(), ma_model.parameters()):
-            old_weight, up_weight = ma_params.data, current_params.data
-            ma_params.data = self.update_average(old_weight, up_weight)
-
-    def update_average(self, old, new):
-        if old is None:
-            return new
-        return old * self.beta + (1 - self.beta) * new
-
-    def step_ema(self, ema_model, model, step_start_ema=2000):
-        if self.step < step_start_ema:
-            self.reset_parameters(ema_model, model)
-            self.step += 1
-            return
-        self.update_model_average(ema_model, model)
-        self.step += 1
-
-    def reset_parameters(self, ema_model, model):
-        ema_model.load_state_dict(model.state_dict())
-
-
-class SelfAttention(nn.Module):
-    def __init__(self, channels, size):
-        super(SelfAttention, self).__init__()
-        self.channels = channels
-        self.size = size
-        self.mha = nn.MultiheadAttention(channels, 4, batch_first=True)
-        self.ln = nn.LayerNorm([channels])
-        self.ff_self = nn.Sequential(
-            nn.LayerNorm([channels]),
-            nn.Linear(channels, channels),
-            nn.GELU(),
-            nn.Linear(channels, channels),
-        )
-
-    def forward(self, x):
-        print(x.shape)
-        x = x.view(-1, self.channels, self.size * self.size).swapaxes(1, 2)
-        x_ln = self.ln(x)
-        attention_value, _ = self.mha(x_ln, x_ln, x_ln)
-        attention_value = attention_value + x
-        attention_value = self.ff_self(attention_value) + attention_value
-        return attention_value.swapaxes(2, 1).view(-1, self.channels, self.size, self.size)
 
 
 class DoubleConv(nn.Module):
@@ -138,22 +135,22 @@ class UNet(nn.Module):
         self.time_dim = time_dim
         self.inc = DoubleConv(c_in, 64)
         self.down1 = Down(64, 128)
-        self.sa1 = SelfAttention(128, 32)
+        self.sa1 = MSA(128, 32)
         self.down2 = Down(128, 256)
-        self.sa2 = SelfAttention(256, 16)
+        self.sa2 = MSA(256, 16)
         self.down3 = Down(256, 256)
-        self.sa3 = SelfAttention(256, 8)
+        self.sa3 = MSA(256, 8)
 
         self.bot1 = DoubleConv(256, 512)
         self.bot2 = DoubleConv(512, 512)
         self.bot3 = DoubleConv(512, 256)
 
         self.up1 = Up(512, 128)
-        self.sa4 = SelfAttention(128, 16)
+        self.sa4 = MSA(128, 16)
         self.up2 = Up(256, 64)
-        self.sa5 = SelfAttention(64, 32)
+        self.sa5 = MSA(64, 32)
         self.up3 = Up(128, 64)
-        self.sa6 = SelfAttention(64, 64)
+        self.sa6 = MSA(64, 64)
         self.outc = nn.Conv2d(64, c_out, kernel_size=1)
 
     def pos_encoding(self, t, channels):
@@ -173,23 +170,23 @@ class UNet(nn.Module):
         
         x1 = self.inc(x)
         x2 = self.down1(x1, t)
-        #x2 = self.sa1(x2)
+        x2 = self.sa1(x2)
         x3 = self.down2(x2, t)
-        #x3 = self.sa2(x3)
+        x3 = self.sa2(x3)
         x4 = self.down3(x3, t)
-        #x4 = self.sa3(x4)
+        x4 = self.sa3(x4)
         
         x4 = self.bot1(x4)
         x4 = self.bot2(x4)
         x4 = self.bot3(x4)
         
         x = self.up1(x4, x3, t)
-        #x = self.sa4(x)
+        x = self.sa4(x)
         x = self.up2(x, x2, t)
         
-       # x = self.sa5(x)
+        x = self.sa5(x)
         
         x = self.up3(x, x1, t)
-        #x = self.sa6(x)
+        x = self.sa6(x)
         output = self.outc(x)
         return output
