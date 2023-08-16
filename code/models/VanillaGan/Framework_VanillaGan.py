@@ -75,7 +75,7 @@ class model(torch.nn.Module):
 
             if(epoch + 1) > self.params['decay_epoch']:
                 self.opt_disc.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
-                self.opt_gen.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] - self.params['decay_epoch'])
+                self.opt_gen.param_groups[0]['lr'] -= self.params['learn_rate_gen'] / (self.params['num_epochs'] -  self.params['decay_epoch'])
 
  
             train_loop = tqdm(enumerate(train_data_loader), total = len(train_data_loader), leave= False)
@@ -85,7 +85,17 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 # Train Generator
                 # -----------------------------------------------------------------------------------------
-                fake_IHC = self.gen(real_HE)
+                noise_mean = 0
+                noise_std = 1
+                if self.params['noise'] == 'concat':
+                    noise = torch.tensor(np.random.normal(noise_mean, noise_std, real_HE.size()), dtype=torch.float).to(self.params['device'])
+                    z = torch.cat((noise, real_HE), 2)
+                    
+                if self.params['noise'] == 'add':
+                    noise = torch.tensor(np.random.normal(noise_mean, noise_std, real_HE.size()), dtype=torch.float).to(self.params['device'])
+                    z = real_HE + noise
+                    
+                fake_IHC = self.gen(z)
                 loss_gen_total = 0
                 
                 
@@ -115,6 +125,7 @@ class model(torch.nn.Module):
                     loss_psnr = (self.params['psnr_lambda']*loss_psnr)
                     loss_gen_total = loss_gen_total + loss_psnr
 
+                # hist loss
                 if 'hist_loss' in self.params['total_loss_comp']:
                     hist_loss = utils.hist_loss(self,
                                                    real_img = real_IHC,

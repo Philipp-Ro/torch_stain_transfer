@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 from U_net_Generator_model import U_net_Generator
 import torch.optim as optim
+from U_net_pytorch import UNet
 
 class model(torch.nn.Module):
     def __init__(self,params):
@@ -35,7 +36,8 @@ class model(torch.nn.Module):
         # in our case:
         # Domain X = HE
         # Domain Y = IHC
-        self.gen = U_net_Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+        #self.gen = U_net_Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+        self.gen = UNet(in_channels=params['in_channels'],out_channels=3, init_features=32).to(params['device'])
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
         self.MSE_LOSS = nn.MSELoss().to(params['device'])
         self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])

@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'ViT'
+output_folder : 'ViT/ViT_25_32x32_patch'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -46,10 +46,10 @@ preprocess_IHC : []
 #------------------------------------------------------------------------------------------
 # Model Set up
 #------------------------------------------------------------------------------------------
-patch_size : [16,16]
+patch_size : [32,32]
 
 num_heads : 8
-num_blocks : 4
+num_blocks : 6
 mlp_ratio : 4
 attention_dropout : 0.2
 dropout : 0.2

@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'VanillaGan'
+output_folder : 'conditional_Gan'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -47,6 +47,9 @@ preprocess_IHC : ['normalise']
 # Model Set up
 #------------------------------------------------------------------------------------------
 # features are the is the channeldimention for the U_net and the disc
+# noise combination choose ['add' or 'concat']
+
+noise : 'add'
 gen_features : [64, 128, 256, 512]
 disc_features : [64, 128, 256, 512]
 

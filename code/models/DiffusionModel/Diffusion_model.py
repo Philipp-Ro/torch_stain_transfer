@@ -17,14 +17,22 @@ class Diffusion:
     def prepare_noise_schedule(self):
         return torch.linspace(self.beta_start, self.beta_end, self.noise_steps)
 
-    def noise_img(self, x, t):
+    def noise_img(self, x, t, y):
         # -----------------------------------------------------------------------------------------------------------------
         # the noise doesnt have to be calculated itterativewly
+        # calculation of conditional or unconditional noisy image at timestep t 
 
         sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t])[:, None, None, None]
         sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t])[:, None, None, None]
         noise = torch.randn_like(x)
-        return sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * noise, noise
+        z = noise+y
+        if y == None:
+            noise_image = sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * noise
+            return noise_image, noise
+        else:
+            conditional_noise_img = sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * z
+            return conditional_noise_img, z
+        
 
     def sample_timesteps(self, n):
         return torch.randint(low=1, high=self.noise_steps, size=(n,))
@@ -40,27 +48,17 @@ class Diffusion:
         out = vals.gather(-1, t.cpu())
         return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
 
-    def forward_diffusion_sample(x_0, t, device="cuda"):
-        # --------------------------------------------------------------
-        # Takes an image and a timestep as input and 
-        # returns the noisy version of it
-        # --------------------------------------------------------------
-        print(x_0)
-        noise = torch.randn_like(x_0)
-        sqrt_alphas_cumprod_t = get_index_from_list(sqrt_alphas_cumprod, t, x_0.shape)
-        sqrt_one_minus_alphas_cumprod_t = get_index_from_list(
-            sqrt_one_minus_alphas_cumprod, t, x_0.shape
-        )
-        # mean + variance
-        return sqrt_alphas_cumprod_t.to(device) * x_0.to(device) \
-        + sqrt_one_minus_alphas_cumprod_t.to(device) * noise.to(device), noise.to(device)
-
-    def sample(self, model, n):
+    def sample(self, model, n,y):
         #logging.info(f"Sampling {n} new images....")
-        model.eval()
+        #model.eval()
         with torch.no_grad():
-            x = torch.randn((n, 3, self.img_size, self.img_size)).to(self.device)
-            for i in tqdm(reversed(range(1, self.noise_steps)), position=0):
+            if y == None:
+                x = torch.randn((n, 3, self.img_size, self.img_size)).to(self.device)
+            else:
+                x = torch.randn((n, 3, self.img_size, self.img_size)).to(self.device)
+                x = x+y
+            
+            for i in reversed(range(1, self.noise_steps)):
                 t = (torch.ones(n) * i).long().to(self.device)
                 predicted_noise = model(x, t)
                 alpha = self.alpha[t][:, None, None, None]
@@ -71,11 +69,13 @@ class Diffusion:
                 else:
                     noise = torch.zeros_like(x)
                 x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
-        model.train()
+        #model.train()
         x = (x.clamp(-1, 1) + 1) / 2
         
         return x
 
+
+    
 
 #-----------------------------------------------------------------------------------------------
 # POSITIONAL EMBEDDING

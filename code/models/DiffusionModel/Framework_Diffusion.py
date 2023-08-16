@@ -81,6 +81,7 @@ class model(torch.nn.Module):
             train_loop = tqdm(enumerate(train_data_loader), total = len(train_data_loader), leave= False)
             
             for i, (real_HE, real_IHC,img_name) in train_loop :
+                
               
                 # -----------------------------------------------------------------------------------------
                 # Train Diffusion model
@@ -89,8 +90,10 @@ class model(torch.nn.Module):
                 #print(real_IHC.shape)
                 #t = torch.randint(0, self.params['noise_steps'], (real_HE.shape[0],), device=self.params['device']).long()
                 t = self.diffusion.sample_timesteps(real_IHC.shape[0]).to(self.params['device'])
-                x_t, noise = self.diffusion.noise_img(real_IHC, t)
-
+                if self.params['conditional'] == True:
+                    x_t, noise = self.diffusion.noise_img(real_IHC, t, real_IHC)
+                elif self.params['conditional'] == False:
+                    x_t, noise = self.diffusion.noise_img(real_IHC, t, None)
                 
                 #x_t, noise = self.diffusion.forward_diffusion_sample(x_0=real_IHC, t=t)
                 #noise_pred = self.U_net(x_t, t)
@@ -106,16 +109,21 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 #saves losses in list 
                 diffusion_loss_list.append(diffusion_loss.item())
+                
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix( Gen_loss = diffusion_loss.item())
             k = k+1
+           
             # -------------------------- saving models after each 5 epochs --------------------------------
             if epoch % 5 == 0:
                 output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
                 epoch_name = 'gen_G_weights_'+str(epoch)
-                sampled_images = self.diffusion.sample(self.U_net , n=real_IHC.shape[0])
+                if self.params['conditional'] == True:
+                    sampled_images = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=real_IHC)
+                elif self.params['conditional'] == False:
+                    sampled_images = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=None)
 
                 utils.plot_img_set( real_HE = real_HE,
                                     fake_IHC=sampled_images,
