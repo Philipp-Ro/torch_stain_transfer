@@ -22,6 +22,7 @@ import torch.nn as nn
 from U_net_Generator_model import U_net_Generator
 import torch.optim as optim
 from U_net_pytorch import UNet
+import torchvision
 
 class model(torch.nn.Module):
     def __init__(self,params):
@@ -78,7 +79,9 @@ class model(torch.nn.Module):
             train_loop = tqdm(enumerate(train_data_loader), total = len(train_data_loader), leave= False)
             
             for i, (real_HE, real_IHC,img_name) in train_loop :
-              
+
+                if self.params['contrast_IHC']!=0:
+                    real_IHC = torchvision.transforms.functional.adjust_contrast(real_IHC,self.params['contrast_IHC'])
                 # -----------------------------------------------------------------------------------------
                 # Train U_net
                 # -----------------------------------------------------------------------------------------

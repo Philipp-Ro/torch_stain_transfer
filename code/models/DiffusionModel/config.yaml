@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'diffusion_model/diffusion_conditional'
+output_folder : 'diffusion_model/diffusion_conditional_norm'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -41,8 +41,8 @@ std_img_net: [0.229, 0.224, 0.225]
 # 'instance_norm' ----------> choose img_net or bci 
 # 'colorjitter' ------------> will augment the input image 
 # 'normalise' --------------> will normalise the image to mean = 0 and std = 1
-preprocess_HE : ['normalise']
-preprocess_IHC : ['normalise']
+preprocess_HE : []
+preprocess_IHC : []
 #
 #
 #------------------------------------------------------------------------------------------

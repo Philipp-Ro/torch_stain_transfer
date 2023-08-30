@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 from Generator_model import Generator
 from Discriminator_model import Discriminator
+from U_net_pytorch import UNet
 import torch.optim as optim
 
 class model(torch.nn.Module):
@@ -37,10 +38,12 @@ class model(torch.nn.Module):
         # Domain X = HE
         # Domain Y = IHC
         self.disc = Discriminator(in_channels=params['in_channels'],features=params['disc_features']).to(params['device'])
-        self.gen = Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+        #self.gen = Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+        self.gen = UNet(in_channels=params['in_channels'],out_channels=3, init_features=32).to(params['device'])
         self.opt_disc = optim.Adam(self.disc.parameters(), lr=params['learn_rate_disc'], betas=(params['beta1'],params['beta2']))
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=params['learn_rate_disc'], betas=(params['beta1'], params['beta2']))
         self.BCE = nn.BCEWithLogitsLoss().to(params['device'])
+        self.MSE = nn.MSELoss().to(params['device'])
         self.L1_LOSS = nn.L1Loss().to(params['device'])
         self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
         self.psnr = PeakSignalNoiseRatio().to(params['device'])
@@ -94,8 +97,8 @@ class model(torch.nn.Module):
 
                 with torch.cuda.amp.autocast():
                     # output for disc on fake image
-                    D_fake = self.disc(real_HE, fake_IHC)
-                    G_fake_loss = self.BCE(D_fake, torch.ones_like(D_fake))
+                    D_fake = self.disc(real_HE, fake_IHC.detach())
+                    G_fake_loss = self.MSE(D_fake, torch.ones_like(D_fake))
                     L1 = self.L1_LOSS(fake_IHC, real_IHC) * self.params['L1_lambda']
                     loss_gen = G_fake_loss + L1
                 
@@ -144,9 +147,9 @@ class model(torch.nn.Module):
                 with torch.cuda.amp.autocast():
                     
                     D_real = self.disc(real_HE, real_IHC)
-                    D_real_loss = self.BCE(D_real, torch.ones_like(D_real))
+                    D_real_loss = self.MSE(D_real, torch.ones_like(D_real))
                     D_fake = self.disc(real_HE, fake_IHC.detach())
-                    D_fake_loss = self.BCE(D_fake, torch.zeros_like(D_fake))
+                    D_fake_loss = self.MSE(D_fake, torch.zeros_like(D_fake))
                     loss_disc = (D_real_loss + D_fake_loss) / 2
 
                     loss_disc_print = loss_disc

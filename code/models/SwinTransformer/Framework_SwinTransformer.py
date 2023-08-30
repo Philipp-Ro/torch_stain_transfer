@@ -94,8 +94,7 @@ class model(torch.nn.Module):
                 fake_IHC = self.gen(real_HE)
                 loss_gen_total = 0
                 
-                loss_gen = self.MSE_LOSS(real_IHC, fake_IHC.detach())
-
+                loss_gen = self.MSE_LOSS(real_IHC, fake_IHC)
                 loss_gen_total = loss_gen_total + loss_gen
 
                 if "normalise" in self.params["preprocess_IHC"]:
