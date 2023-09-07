@@ -2,6 +2,7 @@
 # Imports
 # -------------------------------------------------------------------------------------------------------------------------
 import os, sys
+# add the parent and grandparent dir to be able to use the utils and eval fuction 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 grandparentdir = os.path.dirname(parentdir)
@@ -19,9 +20,8 @@ from torchmetrics import PeakSignalNoiseRatio
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from U_net_Generator_model import U_net_Generator
 import torch.optim as optim
-from U_net_pytorch import UNet
+from U_net_model import UNet
 import torchvision
 
 class model(torch.nn.Module):
@@ -37,8 +37,7 @@ class model(torch.nn.Module):
         # in our case:
         # Domain X = HE
         # Domain Y = IHC
-        #self.gen = U_net_Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
-        self.gen = UNet(in_channels=params['in_channels'],out_channels=3, init_features=32).to(params['device'])
+        self.gen = UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
         self.MSE_LOSS = nn.MSELoss().to(params['device'])
         self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
@@ -46,12 +45,21 @@ class model(torch.nn.Module):
         self.params = params
         self.g_scaler = torch.cuda.amp.GradScaler()
         self.d_scaler = torch.cuda.amp.GradScaler()
+        self.output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
+        self.checkpoint_folder = os.path.join(self.output_folder_path,"checkpoints")
+        self.result_dir = os.path.join(self.output_folder_path,'train_result.txt')
+        os.mkdir(self.checkpoint_folder)
 
     def fit(self):
-        gen_loss_list = []
-
+        train_eval ={}
+        train_eval['mse'] = []
+        train_eval['ssim'] = []
         k =0
+        best_perf = 2
+
         for epoch in range(self.params['num_epochs']):
+            mse_list = []
+            ssim_list = []
                 
             # the dataset is set up he coppes images out of the original image i the set size 
             # each epoch he takes a new slice of the original image 
@@ -61,7 +69,7 @@ class model(torch.nn.Module):
            
             num_patches = (1024 * 1024) // self.params['img_size'][0]**2 
             if k>num_patches-1:
-                k=1
+                k=0
 
             train_data = loader.stain_transfer_dataset( img_patch=  k,
                                                         params= self.params,
@@ -86,19 +94,18 @@ class model(torch.nn.Module):
                 # Train U_net
                 # -----------------------------------------------------------------------------------------
                 fake_IHC = self.gen(real_HE)
+
+                #fake_IHC = NormalizeTensor(fake_IHC)
+
                 loss_gen_total = 0
                 
                 loss_gen = self.MSE_LOSS(real_IHC, fake_IHC)
-
                 loss_gen_total = loss_gen_total + loss_gen
-                if "normalise" in self.params["preprocess_IHC"]:
-                    # denormalise images 
-                    fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
-                    real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
-                
+
+                ssim_IHC = self.ssim(fake_IHC, real_IHC)
+
                 # ssim loss 
                 if 'ssim' in self.params['total_loss_comp']:
-                    ssim_IHC = self.ssim(fake_IHC, real_IHC)
                     loss_ssim = 1-ssim_IHC
 
                     loss_ssim = (self.params['ssim_lambda']*loss_ssim)
@@ -130,17 +137,18 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
-                #saves losses in list 
-                gen_loss_list.append(loss_gen_total.item())
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix( Gen_loss = loss_gen_total.item())
-            k = k+1
+
+                # saves train loss for each epoch        
+                mse_list.append(loss_gen.item())
+                ssim_list.append(ssim_IHC.item())
+
+            
             # -------------------------- saving models after each 5 epochs --------------------------------
             if epoch % 5 == 0:
-                output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
-                epoch_name = 'gen_G_weights_'+str(epoch)
 
                 utils.plot_img_set( real_HE = real_HE,
                                     fake_IHC=fake_IHC,
@@ -150,14 +158,32 @@ class model(torch.nn.Module):
                                     img_name = img_name,
                                     step = 'train',
                                     epoch = epoch )
+                
+            epoch_name = 'gen_G_weights_'+str(epoch)
+            torch.save(self.gen.state_dict(),os.path.join(self.checkpoint_folder,epoch_name ) )
 
-                torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
+            train_eval['mse'].append(np.mean(mse_list))
+            train_eval['ssim'].append(np.mean(ssim_list))
 
-        x=np.arange(len(gen_loss_list))
+            current_perf = np.mean(mse_list)+(1-np.mean(ssim_list))
 
-        plt.plot(x,gen_loss_list)
-        plt.title("U_net_LOSS")
+            # ------- delete list to clear ram ---------------------------------------------------------
+            del mse_list
+            del ssim_list
+            # -------- add k + 1 tchange the patches in the loader --------------------------------------
+            k = k+1
 
-        plt.savefig(os.path.join(output_folder_path,'loss_graphs'))
+            if current_perf < best_perf:
+                best_perf = current_perf
+                gen_out = self.gen
 
-        return self.gen
+
+
+        # open file for writing
+        f = open(self.result_dir,"w")
+        # write file
+        f.write( str(train_eval) )
+        # close file
+        f.close()    
+
+        return gen_out

@@ -49,8 +49,7 @@ class Discriminator(nn.Module):
 
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x, y):
-        x = torch.cat([x, y], dim=1)
+    def forward(self, x):
         x = self.initial(x)
         x = self.model(x)
         return x

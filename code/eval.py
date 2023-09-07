@@ -20,13 +20,15 @@ class test_network():
         self.result_dir = os.path.join(self.output_folder_path,'result.txt')
         self.params = params
         self.train_time = train_time
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
+        self.psnr = PeakSignalNoiseRatio().to(params['device'])
 
         self.model = model
 
 
     def fit(self):
         self.model.load_state_dict(torch.load(self.model_path))
-        self.model.eval()    
+        #self.model.eval()    
 
         # set up result vector 
         result = {}
@@ -49,30 +51,26 @@ class test_network():
             test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
 
             # ------ set up ssim and psnr ----------------------------------------------------
-            ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
-            ssim = ssim.cuda()
-            ssim_scores = []
+            ssim_list = []
+            psnr_list = []
 
-            psnr = PeakSignalNoiseRatio()
-            psnr = psnr.cuda()
-            psnr_scores = []
-
-            # get random instances 
-            randomlist = []
-            for i in range(0,self.params['plots_per_epoch']):
-                n = random.randint(1,len(test_data_loader))
-                randomlist.append(n)
+            # ----------- get plots 
+            plot_list = []
+            if self.params['test_idx'] != []:
+                plot_list = self.params['test_idx']
+            else:
+                # get random instances 
+                for i in range(0,self.params['plots_per_epoch']):
+                    n = random.randint(1,len(test_data_loader))
+                    plot_list.append(n)
 
             for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
+
                 fake_IHC = self.model(real_HE)
-                if "normalise" in self.params["preprocess_IHC"]:
-                    fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
-                    real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
-
-                if "normalise" in self.params["preprocess_HE"]:
-                    real_HE = utils.denomalise(self.params['mean_HE'], self.params['std_HE'],real_HE)
-
-                if i in randomlist:
+                print(i)
+                ssim_score = float(self.ssim(fake_IHC, real_IHC))
+                psnr_score = float(self.psnr(fake_IHC, real_IHC))
+                if i in plot_list:
                   
                     utils.plot_img_set( real_HE=real_HE,
                                         fake_IHC=fake_IHC,
@@ -83,10 +81,13 @@ class test_network():
                                         step = 'test',
                                         epoch = epoch )
             
+
+                ssim_list.append(ssim_score)
+                psnr_list.append(psnr_score)
                 
-                ssim_scores.append(ssim(fake_IHC, real_IHC).item())
-                psnr_scores.append(psnr(fake_IHC, real_IHC).item())
-                
+                del real_HE
+                del fake_IHC
+                del real_IHC
 
             result['ssim_mean'].append(np.mean(ssim_scores))
             result['ssim_std'].append(np.std(ssim_scores))

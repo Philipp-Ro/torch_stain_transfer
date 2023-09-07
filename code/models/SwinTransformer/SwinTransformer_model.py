@@ -132,7 +132,7 @@ class WindowAttention(nn.Module):
         out = rearrange(out, 'b h (nw_h nw_w) (w_h w_w) d -> b (nw_h w_h) (nw_w w_w) (h d)',
                         h=h, w_h=self.window_size, w_w=self.window_size, nw_h=nw_h, nw_w=nw_w)
         out = self.to_out(out)
-
+        
         if self.shifted:
             out = self.cyclic_back_shift(out)
         return out
@@ -229,6 +229,7 @@ class SwinTransformer(nn.Module):
                                   window_size=window_size, relative_pos_embedding=relative_pos_embedding)
 
         self.final_conv = nn.Conv2d(hidden_dim * 8, out_channels, kernel_size = 3, stride=1, padding=1, bias=False)
+        self.out = nn.Sigmoid()
 
     def forward(self, img):
         x = self.stage1(img)
@@ -237,13 +238,14 @@ class SwinTransformer(nn.Module):
         x = self.stage4(x)
         #x = x.mean(dim=[2, 3])
         out = self.final_conv(x)
-        return out
+        return torch.sigmoid(out)
 
 
 def test():
-    x = torch.randn(1,3, 256, 256)
+    x = torch.randn(1,3,128,128)
     model = SwinTransformer(hidden_dim=96, layers=(2, 2, 6, 2), heads=(3, 6, 12, 24))
     preds = model(x)
+    print(preds)
     print(preds.shape)
 
 if __name__ == "__main__":

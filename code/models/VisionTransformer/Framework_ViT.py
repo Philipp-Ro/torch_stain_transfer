@@ -141,6 +141,7 @@ class model(torch.nn.Module):
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix( Gen_loss = loss_gen_total.item())
+
             k = k+1
             # -------------------------- saving models after each 5 epochs --------------------------------
             if epoch % 5 == 0:

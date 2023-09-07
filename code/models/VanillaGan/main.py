@@ -1,4 +1,8 @@
+# -------------------------------------------------------------------------------------------------------------------------
+# Imports
+# -------------------------------------------------------------------------------------------------------------------------
 import os, sys
+# add the parent and grandparent dir to be able to use the utils and eval fuction 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 grandparentdir = os.path.dirname(parentdir)
@@ -10,7 +14,7 @@ import torch
 import Framework_VanillaGan
 import time
 from pathlib import Path
-from U_net_Generator_model import U_net_Generator
+from U_net_model import UNet
 
 # --------------------------- load Parameters from config ----------------------------------
 config_path = os.path.join(Path.cwd(),'code\\models\\VanillaGan\\config.yaml')
@@ -20,7 +24,7 @@ params = utils.get_config_from_yaml(config_path)
 model = Framework_VanillaGan.model(params=params)
 # --------------------------- Train Network ------------------------------------------------
 start = time.time()
-gen, disc = model.fit()
+gen = model.fit()
 stop = time.time()
 
 
@@ -38,7 +42,7 @@ torch.save(gen.state_dict(), model_path)
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-model = U_net_Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+model =  UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
 
 model_testing = eval.test_network(model,params,training_time)
 model_testing.fit()

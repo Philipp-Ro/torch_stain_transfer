@@ -7,14 +7,14 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [128,128]
 in_channels : 3
-num_epochs : 50
-decay_epoch : 45
+num_epochs : 100
+decay_epoch : 85
 batch_size : 1
 device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Swin_transformer'
+output_folder : 'Swin_transfomer'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -92,6 +92,7 @@ hist_lambda : 10
 test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
 num_test_epochs: 2
 plots_per_epoch : 2
+test_idx : [12,38,45,19,4]
 
 
 

@@ -166,9 +166,9 @@ class ViT_Generator (nn.Module):
         self.unflatten = nn.Unflatten(2,(int(math.sqrt(self.embedding_dim)), int(math.sqrt(self.embedding_dim))))
 
 
-        self.fianal_mlp = nn.Sequential(nn.Linear(self.embedding_dim, self.embedding_dim),
-                                  nn.Tanh()
-                                )
+        self.fianal_mlp = nn.Linear(self.embedding_dim, self.embedding_dim)
+
+                                
         
 
     def forward(self, x):
@@ -192,13 +192,15 @@ class ViT_Generator (nn.Module):
         for block in self.blocks:
             ViT_out = block(ViT_in)
         
-        mlp_out =  self.fianal_mlp(ViT_out)
+        
         # unflatten patches 
-        unflatten = self.unflatten(mlp_out)
+        unflatten = self.unflatten(ViT_out)
         
         # change dimenstions to match input 
-        out = unflatten.reshape([n,c,h,w])
-        return out 
+        reshaped = unflatten.reshape([n,c,h,w])
+        #out =  self.fianal_mlp(reshaped)
+
+        return reshaped
 
 def test():
     x = torch.randn((1, 3, 256, 256)).cuda()

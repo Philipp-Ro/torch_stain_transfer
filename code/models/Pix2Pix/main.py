@@ -10,7 +10,7 @@ import torch
 import Framework_Pix2Pix
 import time
 from pathlib import Path
-from Generator_model import Generator
+from U_net_model import UNet
 
 # --------------------------- load Parameters from config ----------------------------------
 #params = utils.get_config_from_yaml('C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/code/config.yaml')
@@ -39,6 +39,6 @@ torch.save(gen.state_dict(), model_path)
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-model =  Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+model =  UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
 model_testing = eval.test_network(model,params,training_time)
 model_testing.fit()

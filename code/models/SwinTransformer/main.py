@@ -19,6 +19,7 @@ params = utils.get_config_from_yaml(config_path)
 # --------------------------- intitialise cycle_Gan ----------------------------------------
 model = Framework_SwinTransformer.model(params=params)
 # --------------------------- Train Network ------------------------------------------------
+
 start = time.time()
 gen = model.fit()
 stop = time.time()
@@ -27,6 +28,7 @@ stop = time.time()
 # ------------------------------------------------------------------------------------------
 # save the trained model 
 # ------------------------------------------------------------------------------------------
+
 training_time = (stop-start)/60
 output_folder_path = os.path.join(params['output_path'],params['output_folder'])
 model_path = os.path.join(output_folder_path,params['model_name'])
@@ -35,9 +37,11 @@ config_path =  os.path.join(output_folder_path,'config.yaml')
 utils.save_config_in_dir(config_path, params)
 torch.save(gen.state_dict(), model_path)
 
+
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
+training_time = 1400
 model = SwinTransformer( hidden_dim=params['hidden_dim'], 
                                     layers=params['layers'], 
                                     heads=params['heads'], 
@@ -45,7 +49,7 @@ model = SwinTransformer( hidden_dim=params['hidden_dim'],
                                     out_channels=params['out_channels'], 
                                     head_dim=params['head_dim'], 
                                     window_size=params['window_size'],
-                                    downscaling_factors=params['dowscaling_factors'], 
+                                    downscaling_factors=params['downscaling_factors'], 
                                     relative_pos_embedding=params['relative_pos_embedding']
                                     ).to(params['device'])
 

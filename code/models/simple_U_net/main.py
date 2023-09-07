@@ -10,8 +10,8 @@ import torch
 import Framework_U_net
 import time
 from pathlib import Path
-from U_net_Generator_model import U_net_Generator
-from U_net_pytorch import UNet
+
+from U_net_model import UNet
 
 # --------------------------- load Parameters from config ----------------------------------
 config_path = os.path.join(Path.cwd(),'code\\models\\simple_U_net\\config.yaml')
@@ -21,7 +21,7 @@ params = utils.get_config_from_yaml(config_path)
 model = Framework_U_net.model(params=params)
 # --------------------------- Train Network ------------------------------------------------
 start = time.time()
-gen = model.fit()
+gen, train_eval = model.fit()
 stop = time.time()
 
 
