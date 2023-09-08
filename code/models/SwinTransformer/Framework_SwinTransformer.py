@@ -166,11 +166,9 @@ class model(torch.nn.Module):
                                     img_name = img_name,
                                     step = 'train',
                                     epoch = epoch )
-
-                torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
-
-            epoch_name = 'gen_G_weights_'+str(epoch)
-            torch.save(self.gen.state_dict(),os.path.join(self.checkpoint_folder,epoch_name ) )
+                # safe a checkpoint 
+                epoch_name = 'gen_G_weights_'+str(epoch)
+                torch.save(self.gen.state_dict(),os.path.join(self.checkpoint_folder,epoch_name ) )
 
             train_eval['mse'].append(np.mean(mse_list))
             train_eval['ssim'].append(np.mean(ssim_list))

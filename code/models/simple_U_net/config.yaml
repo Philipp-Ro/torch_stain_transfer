@@ -7,14 +7,14 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 50
-decay_epoch : 45
+num_epochs : 100
+decay_epoch : 90
 batch_size : 1
 device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Simple_U_net/UNet_vanilla_50'
+output_folder : 'Simple_U_net/UNet_vanilla_100'
 model_name : 'gen_G_weights_final.pth'
 #
 #
