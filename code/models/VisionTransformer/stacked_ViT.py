@@ -11,6 +11,7 @@ from torch import nn
 import numpy as np
 import math
 import torchvision
+from einops import rearrange, reduce, repeat
 
 #-----------------------------------------------------------------------------------------------
 # MLP_Block
@@ -163,10 +164,10 @@ class ViT_Generator (nn.Module):
         # 3) Transformer encoder blocks
         self.blocks = nn.ModuleList([ViT_Block(self.embedding_dim, self.num_heads, self.attention_dropout, self.dropout, self.mlp_ratio) for _ in range(self.num_blocks)])
 
-        self.unflatten = nn.Unflatten(2,(int(math.sqrt(self.embedding_dim)), int(math.sqrt(self.embedding_dim))))
+       #self.unflatten = nn.Unflatten(2,(int(math.sqrt(self.embedding_dim)), int(math.sqrt(self.embedding_dim))))
+        self.transposed_conv = nn.ConvTranspose2d((patch_size[0]**2)* chw[0], self.chw[0], kernel_size=patch_size[0], stride=patch_size[0], padding=0)
 
-
-        self.fianal_mlp = nn.Linear(self.embedding_dim, self.embedding_dim)
+        #self.fianal_mlp = nn.Linear(self.embedding_dim, self.embedding_dim)
 
                                 
         
@@ -192,15 +193,10 @@ class ViT_Generator (nn.Module):
         for block in self.blocks:
             ViT_out = block(ViT_in)
         
+        unsqueesed_out = rearrange(ViT_out, 'b p (d e) -> b p d e' , d=int(np.sqrt(self.embedding_dim)))
+        out = self.transposed_conv(unsqueesed_out)
         
-        # unflatten patches 
-        unflatten = self.unflatten(ViT_out)
-        
-        # change dimenstions to match input 
-        reshaped = unflatten.reshape([n,c,h,w])
-        #out =  self.fianal_mlp(reshaped)
-
-        return reshaped
+        return out
 
 def test():
     x = torch.randn((1, 3, 256, 256)).cuda()

@@ -116,16 +116,9 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
-                if (i+1) % 200 == 0:
+                if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix( Gen_loss = diffusion_loss.item())
-
-                # sample the image only seldom because it takes a lot of time 
-                # the sampled image has the range between [0,1]
-                    if self.params['conditional'] == True:
-                        fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=real_IHC)
-                    elif self.params['conditional'] == False:
-                        fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=None)
 
                     ssim_IHC = self.ssim(fake_IHC, real_IHC)
                     mse_IHC = self.MSE_LOSS(real_IHC, fake_IHC)
@@ -136,6 +129,13 @@ class model(torch.nn.Module):
            
             # -------------------------- saving models after each 5 epochs --------------------------------
             if epoch % 5 == 0:
+
+                # sample the image only seldom because it takes a lot of time 
+                # the sampled image has the range between [0,1]
+                if self.params['conditional'] == True:
+                        fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=real_IHC)
+                elif self.params['conditional'] == False:
+                        fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=None)
 
                 utils.plot_img_set( real_HE = real_HE,
                                     fake_IHC=fake_IHC,

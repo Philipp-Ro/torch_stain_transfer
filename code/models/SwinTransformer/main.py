@@ -53,5 +53,5 @@ model = SwinTransformer( hidden_dim=params['hidden_dim'],
                                     relative_pos_embedding=params['relative_pos_embedding']
                                     ).to(params['device'])
 
-model_testing = eval.test_network(model,params,training_time)
+model_testing = eval.test_network(model,params,training_time).to(params['device'])
 model_testing.fit()

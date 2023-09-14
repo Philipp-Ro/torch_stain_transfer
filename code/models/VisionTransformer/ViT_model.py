@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import numpy as np
 import math
+from einops import rearrange, reduce, repeat
 
 #-----------------------------------------------------------------------------------------------
 # PATCH EMBEDDING
@@ -162,6 +163,9 @@ class ViT_Generator (nn.Module):
         # 3) Transformer encoder blocks
         self.blocks = nn.ModuleList([ViT_Block(self.embedding_dim, self.num_heads) for _ in range(self.num_blocks)])
 
+        self.transposed_conv = nn.ConvTranspose2d(self.embedding_dim, self.chw[0], kernel_size=4, stride=2, padding=1)
+
+
         self.unflatten = nn.Unflatten(2,(int(math.sqrt(self.embedding_dim)), int(math.sqrt(self.embedding_dim))))
 
         self.out = nn.Sequential(nn.Conv2d(self.chw[0], self.chw[0], 1, 1, 0),
@@ -190,6 +194,9 @@ class ViT_Generator (nn.Module):
         for block in self.blocks:
             ViT_out = block(ViT_in)
 
+        #out_1 = self.transposed_conv(ViT_out)
+        out_1 = rearrange(ViT_out, 'b p (d d) -> b p d d')
+        print(out_1.shape)
         # unflatten patches 
         unflatten = self.unflatten(ViT_out)
 
@@ -199,7 +206,7 @@ class ViT_Generator (nn.Module):
 
 def test():
     x = torch.randn((1, 3, 256, 256)).cuda()
-    model = ViT_Generator(chw=[3,256,256], patch_size=[32,32],num_heads=4,num_blocks=4)
+    model = ViT_Generator(chw=[3,256,256], patch_size=[32,32],num_heads=4,num_blocks=4).cuda()
     preds = model(x)
     print(preds.shape)
 

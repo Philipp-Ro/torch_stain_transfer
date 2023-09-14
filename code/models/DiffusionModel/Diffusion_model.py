@@ -1,5 +1,6 @@
 import torch
 import tqdm
+import numpy as np
 
 
 class Diffusion:
