@@ -194,6 +194,7 @@ class ViT_Generator (nn.Module):
             ViT_out = block(ViT_in)
         
         unsqueesed_out = rearrange(ViT_out, 'b p (d e) -> b p d e' , d=int(np.sqrt(self.embedding_dim)))
+
         out = self.transposed_conv(unsqueesed_out)
         
         return out

@@ -27,7 +27,7 @@ import torchvision
 from torchmetrics import StructuralSimilarityIndexMeasure
 
 class model(torch.nn.Module):
-    def __init__(self,params):
+    def __init__(self,params,net):
         super(model, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
         # Diffusion model
@@ -40,7 +40,7 @@ class model(torch.nn.Module):
         # Domain X = HE
         # Domain Y = IHC
         self.diffusion = Diffusion(noise_steps=params['noise_steps'],beta_start=params['beta_start'],beta_end=params['beta_end'],img_size=params['img_size'],device=params['device'])  
-        self.U_net = UNet().to(params['device']) 
+        self.U_net = net.to(params['device'])
         self.opt_U_net = optim.Adam(self.U_net.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
         self.MSE_LOSS = nn.MSELoss().to(params['device'])
         self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
@@ -52,6 +52,7 @@ class model(torch.nn.Module):
         self.checkpoint_folder = os.path.join(self.output_folder_path,"checkpoints")
         self.result_dir = os.path.join(self.output_folder_path,'train_result.txt')
         os.mkdir(self.checkpoint_folder)
+        os.mkdir(os.path.join(os.path.join(params['output_path'],params['output_folder']),"train_plots"))
 
 
     def fit(self):
@@ -102,7 +103,7 @@ class model(torch.nn.Module):
 
                 t = self.diffusion.sample_timesteps(real_IHC.shape[0]).to(self.params['device'])
                 if self.params['conditional'] == True:
-                    x_t, noise = self.diffusion.noise_img(real_IHC, t, real_IHC)
+                    x_t, noise = self.diffusion.noise_img(real_IHC, t, real_HE)
                 elif self.params['conditional'] == False:
                     x_t, noise = self.diffusion.noise_img(real_IHC, t, None)
                 
@@ -116,9 +117,10 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
-                if (i+1) % 100 == 0:
+                if (i+1) % 150 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix( Gen_loss = diffusion_loss.item())
+                    fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0], y=real_HE)
 
                     ssim_IHC = self.ssim(fake_IHC, real_IHC)
                     mse_IHC = self.MSE_LOSS(real_IHC, fake_IHC)
@@ -133,7 +135,7 @@ class model(torch.nn.Module):
                 # sample the image only seldom because it takes a lot of time 
                 # the sampled image has the range between [0,1]
                 if self.params['conditional'] == True:
-                        fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=real_IHC)
+                        fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=real_HE)
                 elif self.params['conditional'] == False:
                         fake_IHC = self.diffusion.sample(self.U_net , n=real_IHC.shape[0],y=None)
 
@@ -167,13 +169,17 @@ class model(torch.nn.Module):
 
 
 
-        # open file for writing
-        f = open(self.result_dir,"w")
-        # write file
-        f.write( str(train_eval) )
-        # close file
-        f.close()    
+        # plot train results 
+        x = range(self.params['num_epochs'])
+
+        fig, axs = plt.subplots(2)
+        fig.suptitle('train_results')
+        axs[0].plot(x, train_eval['mse'])
+        axs[0].set_title('MSE')
+        axs[1].plot(x, train_eval['ssim'])
+        axs[1].set_title('SSIM')
+
+        fig.savefig(os.path.join(os.path.join(self.params['output_path'],self.params['output_folder']),"train_result.png"))
 
         return gen_out
-
 

@@ -1,8 +1,34 @@
+#-----------------------------------------------------------------------------------------------
+# Vision transformer Implementation 
+#-----------------------------------------------------------------------------------------------
+# Transformer block and multi head attention was adapted by the pytorch implementation from 
+# https://pytorch.org/vision/main/models/vision_transformer.html
+# which was inturn based on the paper ' An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale'
+
+
 import torch
 from torch import nn
 import numpy as np
 import math
+import torchvision
 from einops import rearrange, reduce, repeat
+
+#-----------------------------------------------------------------------------------------------
+# MLP_Block
+#-----------------------------------------------------------------------------------------------
+class MLPBlock(torchvision.ops.misc.MLP):
+    """Transformer MLP block."""
+
+    def __init__(self, in_dim: int, mlp_dim: int, dropout: float):
+        super().__init__(in_dim, [mlp_dim, in_dim], activation_layer=nn.GELU, inplace=None, dropout=dropout)
+
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.normal_(m.bias, std=1e-6)
+
+
 
 #-----------------------------------------------------------------------------------------------
 # PATCH EMBEDDING
@@ -52,87 +78,60 @@ def get_positional_Embeddings(sequence_length, embedding_dim):
             result[i][j] = np.sin(i / (n ** (j / embedding_dim))) if j % 2 == 0 else np.cos(i / (n ** ((j - 1) / embedding_dim)))
     return result
 
-
-#-----------------------------------------------------------------------------------------------
-# MULTIHEAD SELF ATTENTION
-#-----------------------------------------------------------------------------------------------
-# 1) each patch [N ,P, embedding_dim] is mapped to 3 distinct vectors: q, k, and v (query, key, value)
-# 2) for each patch, compute the dot product between its q vector with all of the k vectors, divide by the square root of the dimensionality of these vectors [sqrt(embedding_dim)]
-#       ---> these are called attention cues
-# 3) softmax(attention cues) --> sum(attention cues) = 1
-# 4) multiply each attention cue with the v vectors associated with the different k vectors and sum all up
-# 5) carry out num_head times 
-#
-# embedding_dim % num_head has to be 0 !!
-
-class MSA(nn.Module):
-    def __init__(self, d, num_heads=2):
-        super(MSA, self).__init__()
-        self.d = d
-        self.num_heads = num_heads
-
-        assert d % num_heads == 0, f"Can't divide dimension {d} into {num_heads} heads"
-
-        d_head = int(d / num_heads)
-        self.q_mappings = nn.ModuleList([nn.Linear(d_head, d_head) for _ in range(self.num_heads)])
-        self.k_mappings = nn.ModuleList([nn.Linear(d_head, d_head) for _ in range(self.num_heads)])
-        self.v_mappings = nn.ModuleList([nn.Linear(d_head, d_head) for _ in range(self.num_heads)])
-        self.d_head = d_head
-        self.softmax = nn.Softmax(dim=-1)
-
-    def forward(self, sequences):
-        # Sequences has shape (N, seq_length, token_dim)
-        # We go into shape    (N, seq_length, n_heads, token_dim / n_heads)
-        # And come back to    (N, seq_length, item_dim)  (through concatenation)
-        result = []
-        for sequence in sequences:
-            seq_result = []
-            for head in range(self.num_heads):
-                q_mapping = self.q_mappings[head]
-                k_mapping = self.k_mappings[head]
-                v_mapping = self.v_mappings[head]
-
-                seq = sequence[:, head * self.d_head: (head + 1) * self.d_head]
-                q, k, v = q_mapping(seq), k_mapping(seq), v_mapping(seq)
-
-                attention = self.softmax(q @ k.T / (self.d_head ** 0.5))
-                seq_result.append(attention @ v)
-            result.append(torch.hstack(seq_result))
-        return torch.cat([torch.unsqueeze(r, dim=0) for r in result])
-
-
 #-----------------------------------------------------------------------------------------------
 # ViT BLOCK
 #-----------------------------------------------------------------------------------------------
 class ViT_Block(nn.Module):
-    def __init__(self, hidden_d, num_heads, mlp_ratio=4):
+    def __init__(   self,
+                    hidden_d, 
+                    num_heads, 
+                    attention_dropout, 
+                    dropout, 
+                    mlp_ratio,
+    ):
+        
         super(ViT_Block, self).__init__()
         self.hidden_d = hidden_d
         self.num_heads = num_heads
 
+        # Attention block 
         self.norm1 = nn.LayerNorm(hidden_d)
-        self.mhsa = MSA(hidden_d, num_heads)
+        self.MHSA = torch.nn.MultiheadAttention(hidden_d , num_heads,dropout=attention_dropout, batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+
+        # MLP Block 
+        mlp_dim = mlp_ratio * hidden_d
         self.norm2 = nn.LayerNorm(hidden_d)
-        self.mlp = nn.Sequential(
-            nn.Linear(hidden_d, mlp_ratio * hidden_d),
-            nn.GELU(),
-            nn.Linear(mlp_ratio * hidden_d, hidden_d)
-        )
+        self.mlp = MLPBlock(hidden_d, mlp_dim, dropout)
 
-    def forward(self, x):
-        out = x + self.mhsa(self.norm1(x))
-        out = out + self.mlp(self.norm2(out))
-        return out
 
+
+        #self.norm2 = nn.LayerNorm(hidden_d)
+        #self.mlp = nn.Sequential(
+        #    nn.Linear(hidden_d, mlp_ratio * hidden_d),
+        #    nn.GELU(),
+        #    nn.Linear(mlp_ratio * hidden_d, hidden_d)
+        #)
+
+       
+    def forward(self, input):
+        torch._assert(input.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {input.shape}")
+        x = self.norm1(input)
+        x, _ = self.MHSA(x, x, x, need_weights=False)
+        x = self.dropout(x)
+        x = x + input
+
+        y = self.norm2(x)
+        y = self.mlp(y)
+        return x + y
 
 
 #-----------------------------------------------------------------------------------------------
 # GENERATOR MODEL
 #-----------------------------------------------------------------------------------------------
-
 #
 class ViT_Generator (nn.Module):
-    def __init__(self, chw, patch_size, num_heads, num_blocks) -> None:
+    def __init__(self, chw, patch_size, num_heads, num_blocks, attention_dropout, dropout, mlp_ratio) -> None:
         super(ViT_Generator,self).__init__()
 # inputs :
 # chw ------------> size of image [num_cahnnels, hight, width]
@@ -148,7 +147,9 @@ class ViT_Generator (nn.Module):
         self.embedding_dim = int((chw[1]/patch_size[0])**2)
         self.num_heads = num_heads
         self.num_blocks = num_blocks
-
+        self.attention_dropout = attention_dropout
+        self.dropout = dropout
+        self.mlp_ratio = mlp_ratio
         assert chw[1] % patch_size[0] == 0, "Input shape not entirely divisible by patch_size"
         assert chw[2] % patch_size[1] == 0, "Input shape not entirely divisible by patch_size"
 
@@ -161,16 +162,14 @@ class ViT_Generator (nn.Module):
         self.pos_embedding.requires_grad = False
 
         # 3) Transformer encoder blocks
-        self.blocks = nn.ModuleList([ViT_Block(self.embedding_dim, self.num_heads) for _ in range(self.num_blocks)])
+        self.blocks = nn.ModuleList([ViT_Block(self.embedding_dim, self.num_heads, self.attention_dropout, self.dropout, self.mlp_ratio) for _ in range(self.num_blocks)])
 
-        self.transposed_conv = nn.ConvTranspose2d(self.embedding_dim, self.chw[0], kernel_size=4, stride=2, padding=1)
+       #self.unflatten = nn.Unflatten(2,(int(math.sqrt(self.embedding_dim)), int(math.sqrt(self.embedding_dim))))
+        self.transposed_conv = nn.ConvTranspose2d((patch_size[0]**2)* chw[0], self.chw[0], kernel_size=patch_size[0], stride=patch_size[0], padding=0)
 
+        #self.fianal_mlp = nn.Linear(self.embedding_dim, self.embedding_dim)
 
-        self.unflatten = nn.Unflatten(2,(int(math.sqrt(self.embedding_dim)), int(math.sqrt(self.embedding_dim))))
-
-        self.out = nn.Sequential(nn.Conv2d(self.chw[0], self.chw[0], 1, 1, 0),
-                                  nn.Tanh()
-                                )
+                                
         
 
     def forward(self, x):
@@ -189,24 +188,20 @@ class ViT_Generator (nn.Module):
 
         ViT_in = patches + pos_embed
         # adding possition embedding 
-
+       
         # Transformer Blocks
         for block in self.blocks:
             ViT_out = block(ViT_in)
+        
+        unsqueesed_out = rearrange(ViT_out, 'b p (d e) -> b p d e' , d=int(np.sqrt(self.embedding_dim)))
 
-        #out_1 = self.transposed_conv(ViT_out)
-        out_1 = rearrange(ViT_out, 'b p (d d) -> b p d d')
-        print(out_1.shape)
-        # unflatten patches 
-        unflatten = self.unflatten(ViT_out)
-
-        # change dimenstions to match input 
-        out = unflatten.reshape([n,c,h,w])
+        out = self.transposed_conv(unsqueesed_out)
+        
         return out
 
 def test():
     x = torch.randn((1, 3, 256, 256)).cuda()
-    model = ViT_Generator(chw=[3,256,256], patch_size=[32,32],num_heads=4,num_blocks=4).cuda()
+    model = ViT_Generator(chw=[3,256,256], patch_size=[32,32],num_heads=4,num_blocks=4 , attention_dropout = 0.2, dropout= 0.2, mlp_ratio=4).cuda()
     preds = model(x)
     print(preds.shape)
 

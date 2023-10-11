@@ -57,6 +57,7 @@ class model(torch.nn.Module):
         self.checkpoint_folder = os.path.join(self.output_folder_path,"checkpoints")
         self.result_dir = os.path.join(self.output_folder_path,'train_result.txt')
         os.mkdir(self.checkpoint_folder)
+        os.mkdir(os.path.join(os.path.join(params['output_path'],params['output_folder']),"train_plots"))
 
     def fit(self):
         train_eval ={}
@@ -187,14 +188,18 @@ class model(torch.nn.Module):
 
 
 
-        # open file for writing
-        f = open(self.result_dir,"w")
-        # write file
-        f.write( str(train_eval) )
-        # close file
-        f.close()    
+        x = range(self.params['num_epochs'])
+
+        fig, axs = plt.subplots(2)
+        fig.suptitle('train_results')
+        axs[0].plot(x, train_eval['mse'])
+        axs[0].set_title('MSE')
+        axs[1].plot(x, train_eval['ssim'])
+        axs[1].set_title('SSIM')
+
+        fig.savefig(os.path.join(os.path.join(self.params['output_path'],self.params['output_folder']),"train_result.png"))
 
         return gen_out
 
 
-        return self.gen
+        

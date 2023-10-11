@@ -7,14 +7,14 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 100
-decay_epoch : 90
+num_epochs : 10
+decay_epoch : 9
 batch_size : 1
 device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
-output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'diffusion_model/diff_newest'
+output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results'
+output_folder : 'diffusion_model/diff_1000t_loaded'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -55,6 +55,8 @@ beta_start : 0.0001
 beta_end : 0.02
 conditional : True
 # features are the is the channeldimention for the U_net 
+gen_architecture : "base_Unet"
+trained_model_path : "C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results/diffusion_model/diffusion_conditional/gen_G_weights_70"
 U_net_features : [64, 128, 256, 512]
 
 # --------------------- Optimizer Settings ------------------------------------------------
@@ -80,7 +82,7 @@ hist_lambda : 10
 # Testing
 #-----------------------------------------------------------------------------------------------
 test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
-num_test_epochs: 10
+num_test_epochs: 1
 plots_per_epoch : 1
 
 

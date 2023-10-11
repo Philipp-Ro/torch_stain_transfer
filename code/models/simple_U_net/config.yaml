@@ -7,14 +7,14 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 100
-decay_epoch : 90
+num_epochs : 10
+decay_epoch : 9
 batch_size : 1
 device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
-output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'Simple_U_net/UNet_vanilla_100'
+output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results'
+output_folder : 'U-Net/Resnet'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -36,6 +36,8 @@ std_IHC : [0.05067490897275364, 0.05804296102376095, 0.06596264508250156]
 mean_img_net : [0.485, 0.456, 0.406] 
 std_img_net : [0.229, 0.224, 0.225]
 
+# no contrast = 0
+
 contrast_IHC : 0
 
 # 'grayscale' --------------> transform the image into grayscale => 3 in_channel to 1 
@@ -49,12 +51,19 @@ preprocess_IHC : []
 #------------------------------------------------------------------------------------------
 # Model Set up
 #------------------------------------------------------------------------------------------
+# "Resnet", "BCI_UNet", "Unet"
+gen_architecture : "Resnet"
+trained_model_path : "None"
 # features are the is the channeldimention for the U_net 
 # the Unet posses 3 steps and a bottle neck 
 # feature*2
 # feature*4
 # feature*8
 # feature*16 ----> bottleneck 
+# ----------------------- BCI- U-Net ------------------------------------------------------
+num_steps : 8
+num_features : 64
+bottleneck_len : 1
 gen_features : 32
 
 # --------------------- Optimizer Settings ------------------------------------------------
@@ -72,17 +81,17 @@ total_loss_comp : []
 #
 # Loss Hyperparameters
 generator_lambda : 10
-ssim_lambda : 5
+ssim_lambda : 0.5
 psnr_lambda : 0.05
-hist_lambda : 1
+hist_lambda : 0.5
 
 #-----------------------------------------------------------------------------------------------
 # Testing
 #-----------------------------------------------------------------------------------------------
 test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
-num_test_epochs: 10
+num_test_epochs: 4
 plots_per_epoch : 1
-
+test_idx : [12,38,45,19,4]
 
 
 

@@ -41,7 +41,6 @@ torch.save(gen.state_dict(), model_path)
 # ------------------------------------------------------------------------------------------
 # Testing 
 # ------------------------------------------------------------------------------------------
-training_time = 1400
 model = SwinTransformer( hidden_dim=params['hidden_dim'], 
                                     layers=params['layers'], 
                                     heads=params['heads'], 
@@ -54,4 +53,4 @@ model = SwinTransformer( hidden_dim=params['hidden_dim'],
                                     ).to(params['device'])
 
 model_testing = eval.test_network(model,params,training_time).to(params['device'])
-model_testing.fit()
+model_testing.eval()

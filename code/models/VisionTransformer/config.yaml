@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'ViT/ViT_50_16x16_noTanh'
+output_folder : 'ViT/Vit_3Block_4Mlp_4pat'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -47,12 +47,12 @@ preprocess_IHC : []
 #------------------------------------------------------------------------------------------
 # Model Set up
 #------------------------------------------------------------------------------------------
-patch_size : [16,16]
+patch_size : [4,4]
 
-num_heads : 8
-num_blocks : 6
+num_heads : 4
+num_blocks : 3
 mlp_ratio : 4
-attention_dropout : 0.2
+attention_dropout : 0.1
 dropout : 0.2
 
 # --------------------- Optimizer Settings ------------------------------------------------
@@ -69,7 +69,7 @@ beta2 : 0.999
 total_loss_comp : []
 #
 # Loss Hyperparameters
-generator_lambda : 20
+generator_lambda : 10
 ssim_lambda : 3
 psnr_lambda : 0.05
 hist_lambda : 10

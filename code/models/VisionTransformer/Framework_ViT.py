@@ -19,7 +19,7 @@ from torchmetrics import PeakSignalNoiseRatio
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from stacked_ViT import ViT_Generator
+from ViT_model import ViT_Generator
 import torch.optim as optim
 
 class model(torch.nn.Module):
@@ -53,10 +53,15 @@ class model(torch.nn.Module):
         self.d_scaler = torch.cuda.amp.GradScaler()
 
     def fit(self):
-        gen_loss_list = []
-
+        train_eval ={}
+        train_eval['mse'] = []
+        train_eval['ssim'] = []
         k =0
+        best_perf = 2
+
         for epoch in range(self.params['num_epochs']):
+            mse_list = []
+            ssim_list = []
                 
             # the dataset is set up he coppes images out of the original image i the set size 
             # each epoch he takes a new slice of the original image 
@@ -92,9 +97,11 @@ class model(torch.nn.Module):
                 fake_IHC = self.gen(real_HE)
                 loss_gen_total = 0
                 
-                loss_gen = self.MSE_LOSS(real_IHC, fake_IHC)
-                loss_gen = self.params['generator_lambda'] * loss_gen
+                loss_mse = self.MSE_LOSS(real_IHC, fake_IHC)
+                loss_gen = self.params['generator_lambda'] * loss_mse
                 loss_gen_total = loss_gen_total + loss_gen
+
+                ssim_IHC = self.ssim(fake_IHC, real_IHC)
 
                 if "normalise" in self.params["preprocess_IHC"]:
                     # denormalise images 
@@ -135,14 +142,15 @@ class model(torch.nn.Module):
                 # -----------------------------------------------------------------------------------------
                 # Show Progress
                 # -----------------------------------------------------------------------------------------
-                #saves losses in list 
-                gen_loss_list.append(loss_gen_total.item())
+
 
                 if (i+1) % 100 == 0:
                     train_loop.set_description(f"Epoch [{epoch+1}/{self.params['num_epochs']}]")
                     train_loop.set_postfix( Gen_loss = loss_gen_total.item())
 
-            k = k+1
+                mse_list.append(loss_mse.item())
+                ssim_list.append(ssim_IHC.item())
+
             # -------------------------- saving models after each 5 epochs --------------------------------
             if epoch % 5 == 0:
                 output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
@@ -158,13 +166,30 @@ class model(torch.nn.Module):
                                     epoch = epoch )
 
                 torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
+            
+            train_eval['mse'].append(np.mean(mse_list))
+            train_eval['ssim'].append(np.mean(ssim_list))
 
-        x=np.arange(len(gen_loss_list))
-  
-        plt.plot(x,gen_loss_list)
-        plt.title("ViT_LOSS")
+            current_perf = np.mean(mse_list)+(1-np.mean(ssim_list))
 
-        plt.savefig(os.path.join(output_folder_path,'ViT_loss_graph'))
+            # ------- delete list to clear ram ---------------------------------------------------------
+            del mse_list
+            del ssim_list
+            # -------- add k + 1 tchange the patches in the loader --------------------------------------
+            k = k+1
 
-        return self.gen 
+            if current_perf < best_perf:
+                best_perf = current_perf
+                gen_out = self.gen
+
+
+
+        # open file for writing
+        f = open(os.path.join(output_folder_path,'train_eval.txt' ),"w")
+        # write file
+        f.write( str(train_eval) )
+        # close file
+        f.close()    
+       
+        return gen_out
 

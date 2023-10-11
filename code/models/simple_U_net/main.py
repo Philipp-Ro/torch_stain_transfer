@@ -10,37 +10,64 @@ import torch
 import Framework_U_net
 import time
 from pathlib import Path
-
 from U_net_model import UNet
+from BCI_UNet import UnetGenerator
+from Resnet_gen import ResnetGenerator
 
+train = True
+test = True
+training_time = 0
 # --------------------------- load Parameters from config ----------------------------------
 config_path = os.path.join(Path.cwd(),'code\\models\\simple_U_net\\config.yaml')
 params = utils.get_config_from_yaml(config_path)
 
-# --------------------------- intitialise cycle_Gan ----------------------------------------
-model = Framework_U_net.model(params=params)
-# --------------------------- Train Network ------------------------------------------------
-start = time.time()
-gen, train_eval = model.fit()
-stop = time.time()
+if train == True:
+
+    # --------------------------- intitialise model  -------------------------------------------
+    if params['gen_architecture']== "Resnet":
+        num_features = 64
+        model = ResnetGenerator(input_nc=params['in_channels'], output_nc=3, ngf=num_features, n_blocks=9).to(params['device'])
+    if params['gen_architecture']== "BCI_UNet":
+        num_steps = 8
+        num_features = 64
+        model = UnetGenerator(input_nc=params['in_channels'], output_nc=3, num_downs=num_steps, ngf=num_features).to(params['device'])
+    if params['gen_architecture']== "Unet":
+        model = UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
 
 
-# ------------------------------------------------------------------------------------------
-# save the trained model 
-# ------------------------------------------------------------------------------------------
-training_time = (stop-start)/60
-output_folder_path = os.path.join(params['output_path'],params['output_folder'])
-model_path = os.path.join(output_folder_path,params['model_name'])
-config_path =  os.path.join(output_folder_path,'config.yaml')
+    if params['trained_model_path']!= "None":
+        model.load_state_dict(torch.load(params['trained_model_path']))
 
-utils.save_config_in_dir(config_path, params)
-torch.save(gen.state_dict(), model_path)
+    training = Framework_U_net.model(params=params, net=model)
+    # --------------------------- Train Network ------------------------------------------------
+    start = time.time()
+    gen = training.fit()
+    stop = time.time()
 
-# ------------------------------------------------------------------------------------------
-# Testing 
-# ------------------------------------------------------------------------------------------
-model = UNet(in_channels=params['in_channels'],out_channels=3, init_features=32).to(params['device'])
-#model = U_net_Generator(in_channels=params['in_channels'], features=params['gen_features']).to(params['device'])
+    # ------------------------------------------------------------------------------------------
+    # save the trained model 
+    # ------------------------------------------------------------------------------------------
+    training_time = (stop-start)/60
+    output_folder_path = os.path.join(params['output_path'],params['output_folder'])
+    model_path = os.path.join(output_folder_path,params['model_name'])
+    config_path =  os.path.join(output_folder_path,'config.yaml')
 
-model_testing = eval.test_network(model,params,training_time)
-model_testing.fit()
+    utils.save_config_in_dir(config_path, params)
+    torch.save(gen.state_dict(), model_path)
+
+if test == True:
+    # ------------------------------------------------------------------------------------------
+    # Testing 
+    # ------------------------------------------------------------------------------------------
+    if params['gen_architecture']== "Resnet":
+        num_features = 64
+        model = ResnetGenerator(input_nc=params['in_channels'], output_nc=3, ngf=num_features, n_blocks=9).to(params['device'])
+    if params['gen_architecture']== "BCI_UNet":
+        num_steps = 8
+        num_features = 64
+        model= UnetGenerator(input_nc=params['in_channels'], output_nc=3, num_downs=num_steps, ngf=num_features).to(params['device'])
+    if params['gen_architecture']== "Unet":
+        model = UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
+
+    model_testing = eval.test_network(model,params,training_time)
+    model_testing.eval()
