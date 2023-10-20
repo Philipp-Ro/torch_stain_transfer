@@ -5,7 +5,7 @@
 # 
 #----------------------------- Input ------------------------------------------------------
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
-img_size : [128,128]
+img_size : [256,256]
 in_channels : 3
 num_epochs : 10
 decay_epoch : 9
@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results'
-output_folder : 'swin_transformer/win_8'
+output_folder : 'swin_transformer/2_stage_win4_96_dim_+gaus'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -58,13 +58,16 @@ preprocess_IHC : []
 # head_dim -------------->   ?
 # window_size ----------->   size of the patch windows has img_size % window_size has to be zero !!!
 # downscaling_factors --->   downscaling of the image in each stage here it is 1 because we done downscale
+trained_model_path : "None"
 hidden_dim : 96
-layers : [2, 2, 6, 2]
-heads : [3, 6, 12, 24]
+layers : [2,2]
+heads : [3,6]
+#layers : [2, 2, 6, 2]
+#heads : [3, 6, 12, 24]
 in_channels : 3
 out_channels : 3
 head_dim : 2
-window_size : 8
+window_size : 4
 downscaling_factors : [1, 1, 1, 1]
 relative_pos_embedding : True
 # --------------------- Optimizer Settings ------------------------------------------------
@@ -78,7 +81,10 @@ beta2 : 0.999
 #   'ssim' -------------> SSIM loss (1-ssim(fake,real))
 #   'psnr' -------------> PSNR loss
 #   'hist_loss' --------> compares histograms of the image channels and compares intersection of ral vs fake image 
-total_loss_comp : []
+#   'gausian_loss' ----------> loss withgausian blurr  
+#   'mse_color' -------------> mse by color 
+
+total_loss_comp : ['gausian_loss']
 #
 # Loss Hyperparameters
 generator_lambda : 1

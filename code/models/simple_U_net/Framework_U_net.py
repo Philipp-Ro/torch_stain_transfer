@@ -54,9 +54,6 @@ class model(torch.nn.Module):
         self.output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
         self.checkpoint_folder = os.path.join(self.output_folder_path,"checkpoints")
         self.result_dir = os.path.join(self.output_folder_path,'train_result.txt')
-
-
-
         os.mkdir(self.checkpoint_folder)
         os.mkdir(os.path.join(os.path.join(params['output_path'],params['output_folder']),"train_plots"))
 
@@ -98,6 +95,7 @@ class model(torch.nn.Module):
             
             for i, (real_HE, real_IHC,img_name) in train_loop :
 
+
                 if self.params['contrast_IHC']!=0:
                     real_IHC = torchvision.transforms.functional.adjust_contrast(real_IHC,self.params['contrast_IHC'])
                 # -----------------------------------------------------------------------------------------
@@ -106,32 +104,56 @@ class model(torch.nn.Module):
                 fake_IHC = self.gen(real_HE)
 
                 # ---------------------------- LOSS -------------------------------------------------------
-                G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(real_IHC,fake_IHC)  
-                G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC)  
-                G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC) 
-                #fake_low,fake_high = utils.frequency_division(fake_IHC)
-                #real_low,real_high = utils.frequency_division(real_IHC)
-                #fft_LOSS =self.MSE_LOSS(fake_low.to(self.params['device']),real_low.to(self.params['device']))+ self.MSE_LOSS(fake_high.to(self.params['device']),real_high.to(self.params['device']))
-
-                #fake_IHC = NormalizeTensor(fake_IHC)
+                if 'gausian_blurr_loss' in self.params['total_loss_comp']:
+                    G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(real_IHC,fake_IHC)  
+                    G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC)  
+                    G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC) 
+               
+          
 
                 loss_gen_total = 0
                 
                 loss_mse = self.MSE_LOSS(real_IHC, fake_IHC)
                 loss_gen = self.params['generator_lambda'] * loss_mse
-                loss_gen_total = loss_gen_total + loss_gen + G_L2_LOSS + G_L3_LOSS +G_L4_LOSS
+                loss_gen_total = loss_gen_total + loss_gen 
 
                 ssim_IHC = self.ssim(fake_IHC, real_IHC)
+                if 'mse_color' in self.params['total_loss_comp']:
+                    mse_color_list = []
+                    fake_IHC_0 = fake_IHC[:,0,:,:]
+                    fake_IHC_1 = fake_IHC[:,1,:,:]
+                    fake_IHC_2 = fake_IHC[:,2,:,:]
+
+                    real_IHC_0 = real_IHC[:,0,:,:]
+                    real_IHC_1 = real_IHC[:,1,:,:]
+                    real_IHC_2 = real_IHC[:,2,:,:]
+
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_0 ,real_IHC_0))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_1 ,real_IHC_1))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_2 ,real_IHC_2))
+
+                    mse_color = max(mse_color_list)
+                    loss_gen_total = loss_gen_total + mse_color
+
+
+
+                if 'gausian_loss' in self.params['total_loss_comp']:
+                    G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(real_IHC,fake_IHC)  
+                    G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC)  
+                    G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC) 
+                    loss_gausian = G_L2_LOSS + G_L3_LOSS +G_L4_LOSS
+                    loss_gen_total = loss_gen_total + loss_gausian
 
                 # ssim loss 
-                if 'ssim' in self.params['total_loss_comp']:
+                if 'ssim_loss' in self.params['total_loss_comp']:
                     loss_ssim = 1-ssim_IHC
 
                     loss_ssim = (self.params['ssim_lambda']*loss_ssim)
                     loss_gen_total = loss_gen_total + loss_ssim
+                    print(loss_ssim)
 
                 # psnr loss 
-                if 'psnr' in self.params['total_loss_comp']:
+                if 'psnr_loss' in self.params['total_loss_comp']:
                     psnr_IHC = self.psnr(fake_IHC, real_IHC)
                     loss_psnr = psnr_IHC 
 
@@ -147,7 +169,7 @@ class model(torch.nn.Module):
                     loss_gen_total = loss_gen_total + hist_loss
 
                 # ------------------------- Apply Weights ---------------------------------------------------
-                
+                print(loss_gen_total)
                 self.opt_gen.zero_grad()
                 self.g_scaler.scale(loss_gen_total).backward()
                 self.g_scaler.step(self.opt_gen)

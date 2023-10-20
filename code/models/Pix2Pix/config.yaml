@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results'
-output_folder : 'pix2pix/Transformer'
+output_folder : 'pix2pix/My_Unet_5step_disc_sigmoid'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -49,8 +49,9 @@ preprocess_IHC : []
 #------------------------------------------------------------------------------------------
 # "transformer"
 # "Resnet"
-gen_architecture : "transformer"
-trained_model_path : "None"
+gen_architecture : "my_Unet"
+trained_model_path :  "C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results/U-Net/my_UNet/gen_G_weights_final.pth"
+
 # features are the is the channeldimention for the U_net and the disc
 # features are the is the channeldimention for the U_net 
 # the Unet posses 3 steps and a bottle neck 
@@ -58,6 +59,9 @@ trained_model_path : "None"
 # feature*4
 # feature*8
 # feature*16 ----> bottleneck 
+num_steps : 5
+num_features : 64
+bottleneck_len : 1
 gen_features : 32
 disc_features : 32
 
@@ -82,6 +86,8 @@ beta2 : 0.999
 #   'ssim' -------------> SSIM loss (1-ssim(fake,real))
 #   'psnr' -------------> PSNR loss
 #   'hist_loss' --------> compares histograms of the image channels and compares intersection of ral vs fake image 
+#   'gausian_loss' ----------> loss withgausian blurr  
+#   'mse_color' -------------> mse by color 
 total_loss_comp : []
 #
 # Loss Hyperparameters
@@ -91,6 +97,8 @@ ssim_lambda : 1
 psnr_lambda : 0.05
 hist_lambda : 10
 L1_lambda : 1
+lambda_color : 5
+lambda_gaus : 5
 
 #-----------------------------------------------------------------------------------------------
 # Testing

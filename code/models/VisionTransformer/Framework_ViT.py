@@ -21,9 +21,9 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 from ViT_model import ViT_Generator
 import torch.optim as optim
-
+import kornia
 class model(torch.nn.Module):
-    def __init__(self,params):
+    def __init__(self,params, net):
         super(model, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
         # Initialize U_net
@@ -35,15 +35,7 @@ class model(torch.nn.Module):
         # in our case:
         # Domain X = HE
         # Domain Y = IHC
-        self.gen = ViT_Generator(   chw = [params['in_channels']]+params['img_size'], 
-                                    patch_size = params['patch_size'],
-                                    num_heads = params['num_heads'], 
-                                    num_blocks = params['num_blocks'],
-                                    attention_dropout = params['attention_dropout'], 
-                                    dropout= params['dropout'],
-                                    mlp_ratio=params['mlp_ratio']
-                                    ).to(params['device'])
-        
+        self.gen = net.to(params['device'])
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
         self.MSE_LOSS = nn.MSELoss().to(params['device'])
         self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
@@ -51,6 +43,11 @@ class model(torch.nn.Module):
         self.params = params
         self.g_scaler = torch.cuda.amp.GradScaler()
         self.d_scaler = torch.cuda.amp.GradScaler()
+        self.output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
+        self.checkpoint_folder = os.path.join(self.output_folder_path,"checkpoints")
+        self.result_dir = os.path.join(self.output_folder_path,'train_result.txt')
+        os.mkdir(self.checkpoint_folder)
+        os.mkdir(os.path.join(os.path.join(params['output_path'],params['output_folder']),"train_plots"))
 
     def fit(self):
         train_eval ={}
@@ -107,10 +104,33 @@ class model(torch.nn.Module):
                     # denormalise images 
                     fake_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],fake_IHC)
                     real_IHC = utils.denomalise(self.params['mean_IHC'], self.params['std_IHC'],real_IHC)
+
+                if 'mse_color' in self.params['total_loss_comp']:
+                    mse_color_list = []
+                    fake_IHC_0 = fake_IHC[:,0,:,:]
+                    fake_IHC_1 = fake_IHC[:,1,:,:]
+                    fake_IHC_2 = fake_IHC[:,2,:,:]
+
+                    real_IHC_0 = real_IHC[:,0,:,:]
+                    real_IHC_1 = real_IHC[:,1,:,:]
+                    real_IHC_2 = real_IHC[:,2,:,:]
+
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_0 ,real_IHC_0))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_1 ,real_IHC_1))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_2 ,real_IHC_2))
+
+                    mse_color = max(mse_color_list)
+                    loss_gen_total = loss_gen_total + mse_color
+
+                if 'gausian_loss' in self.params['total_loss_comp']:
+                    G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(real_IHC,fake_IHC)  
+                    G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC)  
+                    G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC) 
+                    loss_gausian = G_L2_LOSS + G_L3_LOSS +G_L4_LOSS
+                    loss_gen_total = loss_gen_total + loss_gausian
                 
                 # ssim loss 
                 if 'ssim' in self.params['total_loss_comp']:
-                    ssim_IHC = self.ssim(fake_IHC, real_IHC)
                     loss_ssim = 1-ssim_IHC
 
                     loss_ssim = (self.params['ssim_lambda']*loss_ssim)
@@ -165,7 +185,7 @@ class model(torch.nn.Module):
                                     step = 'train',
                                     epoch = epoch )
 
-                torch.save(self.gen.state_dict(),os.path.join(output_folder_path,epoch_name ) )
+                torch.save(self.gen.state_dict(),os.path.join(self.checkpoint_folder,epoch_name ) )
             
             train_eval['mse'].append(np.mean(mse_list))
             train_eval['ssim'].append(np.mean(ssim_list))
@@ -184,12 +204,30 @@ class model(torch.nn.Module):
 
 
 
-        # open file for writing
-        f = open(os.path.join(output_folder_path,'train_eval.txt' ),"w")
-        # write file
-        f.write( str(train_eval) )
-        # close file
-        f.close()    
+        x = range(self.params['num_epochs'])
+
+        fig, axs = plt.subplots(2)
+        fig.suptitle('train_results')
+        axs[0].plot(x, train_eval['mse'])
+        axs[0].set_title('MSE')
+        axs[1].plot(x, train_eval['ssim'])
+        axs[1].set_title('SSIM')
+
+        fig.savefig(os.path.join(os.path.join(self.params['output_path'],self.params['output_folder']),"train_result.png"))
        
         return gen_out
 
+
+    def gausian_blurr_loss(self,real_img, fake_img):
+        octave1_layer2_fake=kornia.filters.gaussian_blur2d(fake_img,(3,3),(1,1))
+        octave1_layer3_fake=kornia.filters.gaussian_blur2d(octave1_layer2_fake,(3,3),(1,1))
+        octave1_layer4_fake=kornia.filters.gaussian_blur2d(octave1_layer3_fake,(3,3),(1,1))
+        octave1_layer5_fake=kornia.filters.gaussian_blur2d(octave1_layer4_fake,(3,3),(1,1))
+        octave2_layer1_fake=kornia.filters.blur_pool2d(octave1_layer5_fake, 1, stride=2)
+        octave1_layer2_real=kornia.filters.gaussian_blur2d(real_img,(3,3),(1,1))
+        octave1_layer3_real=kornia.filters.gaussian_blur2d(octave1_layer2_real,(3,3),(1,1))
+        octave1_layer4_real=kornia.filters.gaussian_blur2d(octave1_layer3_real,(3,3),(1,1))
+        octave1_layer5_real=kornia.filters.gaussian_blur2d(octave1_layer4_real,(3,3),(1,1))
+        octave2_layer1_real=kornia.filters.blur_pool2d(octave1_layer5_real, 1, stride=2)
+        G_L2 = self.MSE_LOSS(octave2_layer1_fake, octave2_layer1_real) 
+        return G_L2,octave2_layer1_fake,octave2_layer1_real

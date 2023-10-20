@@ -164,10 +164,13 @@ class ViT_Generator (nn.Module):
         # 3) Transformer encoder blocks
         self.blocks = nn.ModuleList([ViT_Block(self.embedding_dim, self.num_heads, self.attention_dropout, self.dropout, self.mlp_ratio) for _ in range(self.num_blocks)])
 
-       #self.unflatten = nn.Unflatten(2,(int(math.sqrt(self.embedding_dim)), int(math.sqrt(self.embedding_dim))))
+       
         self.transposed_conv = nn.ConvTranspose2d((patch_size[0]**2)* chw[0], self.chw[0], kernel_size=patch_size[0], stride=patch_size[0], padding=0)
+        self.fianal_conv_layer = nn.Conv2d(chw[0],chw[0], kernel_size=1)
 
-        #self.fianal_mlp = nn.Linear(self.embedding_dim, self.embedding_dim)
+        
+        
+
 
                                 
         
@@ -196,8 +199,9 @@ class ViT_Generator (nn.Module):
         unsqueesed_out = rearrange(ViT_out, 'b p (d e) -> b p d e' , d=int(np.sqrt(self.embedding_dim)))
 
         out = self.transposed_conv(unsqueesed_out)
-        
-        return out
+    
+        out = self.fianal_conv_layer(out)
+        return torch.sigmoid(out)
 
 def test():
     x = torch.randn((1, 3, 256, 256)).cuda()

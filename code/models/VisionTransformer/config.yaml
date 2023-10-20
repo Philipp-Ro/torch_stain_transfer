@@ -7,14 +7,14 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 100
-decay_epoch : 85
+num_epochs : 20
+decay_epoch : 17
 batch_size : 1
 device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
-output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/experiment-results'
-output_folder : 'ViT/Vit_3Block_4Mlp_4pat'
+output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results'
+output_folder : 'ViT/Vit_1Block_4Mlp_4pat_mse+gaus'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -47,10 +47,11 @@ preprocess_IHC : []
 #------------------------------------------------------------------------------------------
 # Model Set up
 #------------------------------------------------------------------------------------------
+trained_model_path : "None"
 patch_size : [4,4]
 
 num_heads : 4
-num_blocks : 3
+num_blocks : 1
 mlp_ratio : 4
 attention_dropout : 0.1
 dropout : 0.2
@@ -66,7 +67,9 @@ beta2 : 0.999
 #   'ssim' -------------> SSIM loss (1-ssim(fake,real))
 #   'psnr' -------------> PSNR loss
 #   'hist_loss' --------> compares histograms of the image channels and compares intersection of ral vs fake image 
-total_loss_comp : []
+#   'gausian_loss'
+#   'mse_color'
+total_loss_comp : ['gausian_loss']
 #
 # Loss Hyperparameters
 generator_lambda : 10
@@ -78,8 +81,9 @@ hist_lambda : 10
 # Testing
 #-----------------------------------------------------------------------------------------------
 test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
-num_test_epochs: 2
-plots_per_epoch : 4
+num_test_epochs: 4
+plots_per_epoch : 1
+test_idx : [12,38,45,19,4]
 
 
 

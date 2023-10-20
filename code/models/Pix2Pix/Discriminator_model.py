@@ -29,7 +29,8 @@ class Discriminator(nn.Module):
         self.block2 = BasicBlock(features, features*2)
         self.block3 = BasicBlock(features*2, features*4)
         self.block4 = BasicBlock(features*4, features*8)
-        self.block5 = nn.Conv2d(features*8, 1, kernel_size=4, stride=1, padding=1)
+        self.final_conv = nn.Conv2d(features*8, 1, kernel_size=4, stride=1, padding=1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         # blocks forward
@@ -37,9 +38,10 @@ class Discriminator(nn.Module):
         fx = self.block2(fx)
         fx = self.block3(fx)
         fx = self.block4(fx)
-        fx = self.block5(fx)
+        fx = self.final_conv(fx)
+        out = self.sigmoid(fx)
         
-        return fx
+        return out
 
 
 def test():

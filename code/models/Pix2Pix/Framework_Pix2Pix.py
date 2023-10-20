@@ -104,6 +104,8 @@ class model(torch.nn.Module):
                 fake_IHC = self.gen(real_HE)
                 loss_gen_total = 0
 
+
+                # ---------------------------- LOSS -------------------------------------------------------
                 with torch.cuda.amp.autocast():
                     # output for disc on fake image
                     D_input_fake =torch.cat((real_HE,fake_IHC), 1)
@@ -111,14 +113,32 @@ class model(torch.nn.Module):
                     G_fake_loss = self.BCE(D_fake, torch.ones_like(D_fake))
                     L1 = self.L1_LOSS(fake_IHC, real_IHC) * self.params['L1_lambda']
                     loss_gen = G_fake_loss + L1
+                    loss_gen_total = loss_gen_total + loss_gen
                 
-                # ---------------------------- LOSS -------------------------------------------------------
-                G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(real_IHC,fake_IHC)  
-                G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC)  
-                G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC) 
+                
+                if 'mse_color' in self.params['total_loss_comp']:
+                    mse_color_list = []
+                    fake_IHC_0 = fake_IHC[:,0,:,:]
+                    fake_IHC_1 = fake_IHC[:,1,:,:]
+                    fake_IHC_2 = fake_IHC[:,2,:,:]
 
+                    real_IHC_0 = real_IHC[:,0,:,:]
+                    real_IHC_1 = real_IHC[:,1,:,:]
+                    real_IHC_2 = real_IHC[:,2,:,:]
 
-                loss_gen_total = loss_gen_total + loss_gen+ G_L2_LOSS + G_L3_LOSS +G_L4_LOSS
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_0 ,real_IHC_0))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_1 ,real_IHC_1))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_2 ,real_IHC_2))
+
+                    mse_color = max(mse_color_list)
+                    loss_gen_total = loss_gen_total + mse_color*self.params['lambda_color']
+
+                if 'gausian_loss' in self.params['total_loss_comp']:
+                    G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(real_IHC,fake_IHC)  
+                    G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC)  
+                    G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC) 
+                    loss_gausian = G_L2_LOSS + G_L3_LOSS +G_L4_LOSS
+                    loss_gen_total = loss_gen_total + loss_gausian*self.params['lambda_gaus']
 
                 ssim_IHC = self.ssim(fake_IHC, real_IHC)
                 # ssim loss 

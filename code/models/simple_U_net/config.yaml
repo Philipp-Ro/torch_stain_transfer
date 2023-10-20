@@ -14,7 +14,7 @@ device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results'
-output_folder : 'U-Net/Resnet'
+output_folder : 'U-Net/my_UNet_6_step'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -51,8 +51,8 @@ preprocess_IHC : []
 #------------------------------------------------------------------------------------------
 # Model Set up
 #------------------------------------------------------------------------------------------
-# "Resnet", "BCI_UNet", "Unet"
-gen_architecture : "Resnet"
+# "Resnet", "BCI_UNet", "my_Unet"
+gen_architecture : "my_Unet"
 trained_model_path : "None"
 # features are the is the channeldimention for the U_net 
 # the Unet posses 3 steps and a bottle neck 
@@ -61,7 +61,7 @@ trained_model_path : "None"
 # feature*8
 # feature*16 ----> bottleneck 
 # ----------------------- BCI- U-Net ------------------------------------------------------
-num_steps : 8
+num_steps : 6
 num_features : 64
 bottleneck_len : 1
 gen_features : 32
@@ -74,9 +74,12 @@ beta2 : 0.999
 
 # --------------------- Loss Settings -----------------------------------------------------
 # availeble inputs :
-#   'ssim' -------------> SSIM loss (1-ssim(fake,real))
-#   'psnr' -------------> PSNR loss
-#   'hist_loss' --------> compares histograms of the image channels and compares intersection of ral vs fake image 
+#   'ssim_loss' -------------> SSIM loss (1-ssim(fake,real))
+#   'psnr_loss' -------------> PSNR loss
+#   'hist_loss' -------------> compares histograms of the image channels and compares intersection of ral vs fake image 
+#   'gausian_loss' ----------> loss withgausian blurr  
+#   'mse_color' -------------> mse by color 
+
 total_loss_comp : []
 #
 # Loss Hyperparameters

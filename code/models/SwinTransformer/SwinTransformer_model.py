@@ -214,28 +214,47 @@ class SwinTransformer(nn.Module):
     def __init__(self, *, hidden_dim, layers, heads, in_channels=3, out_channels=3, head_dim=32, window_size=8,
                  downscaling_factors=(1, 1, 1, 1), relative_pos_embedding=True):
         super().__init__()
+        
+        self.num_layers = len(layers)
+        if len(layers) != len(heads):
+            print('heads and layers have to have same lange for the stages ')
 
-        self.stage1 = StageModule(in_channels=in_channels, hidden_dimension=hidden_dim, layers=layers[0],
-                                  downscaling_factor=downscaling_factors[0], num_heads=heads[0], head_dim=head_dim,
-                                  window_size=window_size, relative_pos_embedding=relative_pos_embedding)
-        self.stage2 = StageModule(in_channels=hidden_dim, hidden_dimension=hidden_dim * 2, layers=layers[1],
-                                  downscaling_factor=downscaling_factors[1], num_heads=heads[1], head_dim=head_dim,
-                                  window_size=window_size, relative_pos_embedding=relative_pos_embedding)
-        self.stage3 = StageModule(in_channels=hidden_dim * 2, hidden_dimension=hidden_dim * 4, layers=layers[2],
-                                  downscaling_factor=downscaling_factors[2], num_heads=heads[2], head_dim=head_dim,
-                                  window_size=window_size, relative_pos_embedding=relative_pos_embedding)
-        self.stage4 = StageModule(in_channels=hidden_dim * 4, hidden_dimension=hidden_dim * 8, layers=layers[3],
-                                  downscaling_factor=downscaling_factors[3], num_heads=heads[3], head_dim=head_dim,
-                                  window_size=window_size, relative_pos_embedding=relative_pos_embedding)
+        if len(layers)>=1:
+            self.stage1 = StageModule(  in_channels=in_channels, hidden_dimension=hidden_dim, layers=layers[0],
+                                        downscaling_factor=downscaling_factors[0], num_heads=heads[0], head_dim=head_dim,
+                                        window_size=window_size, relative_pos_embedding=relative_pos_embedding)
+            n=1
 
-        self.final_conv = nn.Conv2d(hidden_dim * 8, out_channels, kernel_size = 3, stride=1, padding=1, bias=False)
+        if len(layers)>=2:
+            self.stage2 = StageModule(  in_channels=hidden_dim, hidden_dimension=hidden_dim * 2, layers=layers[1],
+                                        downscaling_factor=downscaling_factors[1], num_heads=heads[1], head_dim=head_dim,
+                                        window_size=window_size, relative_pos_embedding=relative_pos_embedding)
+            n=2
+
+        if len(layers)>=3:
+            self.stage3 = StageModule(  in_channels=hidden_dim * 2, hidden_dimension=hidden_dim * 4, layers=layers[2],
+                                        downscaling_factor=downscaling_factors[2], num_heads=heads[2], head_dim=head_dim,
+                                        window_size=window_size, relative_pos_embedding=relative_pos_embedding)
+            n=4
+
+        if len(layers)>=4:     
+            self.stage4 = StageModule(  in_channels=hidden_dim * 4, hidden_dimension=hidden_dim * 8, layers=layers[3],
+                                        downscaling_factor=downscaling_factors[3], num_heads=heads[3], head_dim=head_dim,
+                                        window_size=window_size, relative_pos_embedding=relative_pos_embedding)
+            n=8
+            
+
+        self.final_conv = nn.Conv2d(hidden_dim * n, out_channels, kernel_size = 3, stride=1, padding=1, bias=False)
         self.out = nn.Sigmoid()
 
     def forward(self, img):
         x = self.stage1(img)
-        x = self.stage2(x)
-        x = self.stage3(x)
-        x = self.stage4(x)
+        if self.num_layers>=2:
+            x = self.stage2(x)
+        if self.num_layers>=3:
+            x = self.stage3(x)
+        if self.num_layers>=4:
+            x = self.stage4(x)
         #x = x.mean(dim=[2, 3])
         out = self.final_conv(x)
         return torch.sigmoid(out)

@@ -14,6 +14,7 @@ from U_net_model import UNet
 from BCI_UNet import UnetGenerator
 from ViT_model import ViT_Generator
 from Resnet_gen import ResnetGenerator
+from U_net_Generator_model import U_net_Generator
 
 train = True
 test = True
@@ -28,16 +29,16 @@ if train == True:
 
     # --------------------------- intitialise cycle_Gan ----------------------------------------
     if params['gen_architecture']== "Resnet":
-        num_features = 64
-        gen = ResnetGenerator(input_nc=params['in_channels'], output_nc=3, ngf=num_features, n_blocks=9).to(params['device'])
+        gen = ResnetGenerator(input_nc=params['in_channels'], output_nc=3, ngf=params['num_features'], n_blocks=9).to(params['device'])
 
     if params['gen_architecture']== "BCI_UNet":
-        num_steps = 8
-        num_features = 64
-        gen = UnetGenerator(input_nc=params['in_channels'], output_nc=3, num_downs=num_steps, ngf=num_features).to(params['device'])
+        gen = UnetGenerator(input_nc=params['in_channels'], output_nc=3, num_downs=params['num_steps'], ngf=params['num_features']).to(params['device'])
 
     if params['gen_architecture']== "Unet":
         gen = UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
+
+    if params['gen_architecture']== "my_Unet":
+        gen = U_net_Generator(in_channels=params['in_channels'], out_channels=3, features=params['num_features'], steps=params['num_steps'], bottleneck_len=params['bottleneck_len']).to(params['device'])
 
     if params['gen_architecture']== "transformer":
         gen = ViT_Generator(   chw = [params['in_channels']]+params['img_size'], 
@@ -48,6 +49,7 @@ if train == True:
                                     dropout= params['dropout'],
                                     mlp_ratio=params['mlp_ratio']
                                     ).to(params['device'])
+        
     if params['trained_model_path']!= "None":
         gen.load_state_dict(torch.load(params['trained_model_path']))
 
@@ -78,15 +80,16 @@ if test == True:
         model = ResnetGenerator(input_nc=params['in_channels'], output_nc=3, ngf=num_features, n_blocks=9).to(params['device'])
 
     if params['gen_architecture']== "BCI_UNet":
-        num_steps = 8
-        num_features = 64
-        model = UnetGenerator(input_nc=params['in_channels'], output_nc=3, num_downs=num_steps, ngf=num_features).to(params['device'])
+        model = UnetGenerator(input_nc=params['in_channels'], output_nc=3, num_downs=params['num_steps'], ngf=params['num_features']).to(params['device'])
 
     if params['gen_architecture']== "Unet":
-        gen = UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
+        model = UNet(in_channels=params['in_channels'],out_channels=3, init_features=params['gen_features']).to(params['device'])
+
+    if params['gen_architecture']== "my_Unet":
+        model = U_net_Generator(in_channels=params['in_channels'], out_channels=3, features=params['num_features'], steps=params['num_steps'], bottleneck_len=params['bottleneck_len']).to(params['device'])
 
     if params['gen_architecture']== "transformer":
-        gen = ViT_Generator(   chw = [params['in_channels']]+params['img_size'], 
+        model = ViT_Generator(   chw = [params['in_channels']]+params['img_size'], 
                                     patch_size = params['patch_size'],
                                     num_heads = params['num_heads'], 
                                     num_blocks = params['num_blocks'],
@@ -95,8 +98,6 @@ if test == True:
                                     mlp_ratio=params['mlp_ratio']
                                     ).to(params['device'])
         
-    if params['trained_model_path']!= "None":
-        model.load_state_dict(torch.load(params['trained_model_path']))
 
         
     model_testing = eval.test_network(model,params,training_time)

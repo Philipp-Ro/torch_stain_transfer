@@ -21,9 +21,10 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 from SwinTransformer_model import SwinTransformer
 import torch.optim as optim
+import kornia
 
 class model(torch.nn.Module):
-    def __init__(self,params):
+    def __init__(self,params, net):
         super(model, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
         # Initialize U_net
@@ -35,17 +36,7 @@ class model(torch.nn.Module):
         # in our case:
         # Domain X = HE
         # Domain Y = IHC
-        self.gen = SwinTransformer( hidden_dim=params['hidden_dim'], 
-                                    layers=params['layers'], 
-                                    heads=params['heads'], 
-                                    in_channels=params['in_channels'], 
-                                    out_channels=params['out_channels'], 
-                                    head_dim=params['head_dim'], 
-                                    window_size=params['window_size'],
-                                    downscaling_factors=params['downscaling_factors'], 
-                                    relative_pos_embedding=params['relative_pos_embedding']
-                                    ).to(params['device'])
-        
+        self.gen = net.to(params['device'])
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=params['learn_rate_gen'], betas=(params['beta1'], params['beta2']))
         self.MSE_LOSS = nn.MSELoss().to(params['device'])
         self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
@@ -109,6 +100,31 @@ class model(torch.nn.Module):
                 loss_gen_total = loss_gen_total + loss_gen
 
                 ssim_IHC = self.ssim(fake_IHC, real_IHC)
+
+                # ------------------------------------------ LOSS ----------------------------------------
+                if 'mse_color' in self.params['total_loss_comp']:
+                    mse_color_list = []
+                    fake_IHC_0 = fake_IHC[:,0,:,:]
+                    fake_IHC_1 = fake_IHC[:,1,:,:]
+                    fake_IHC_2 = fake_IHC[:,2,:,:]
+
+                    real_IHC_0 = real_IHC[:,0,:,:]
+                    real_IHC_1 = real_IHC[:,1,:,:]
+                    real_IHC_2 = real_IHC[:,2,:,:]
+
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_0 ,real_IHC_0))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_1 ,real_IHC_1))
+                    mse_color_list.append(self.MSE_LOSS(fake_IHC_2 ,real_IHC_2))
+
+                    mse_color = max(mse_color_list)
+                    loss_gen_total = loss_gen_total + mse_color
+
+                if 'gausian_loss' in self.params['total_loss_comp']:
+                    G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(real_IHC,fake_IHC)  
+                    G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC)  
+                    G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= self.gausian_blurr_loss(fake_blurr_IHC, real_blur_IHC) 
+                    loss_gausian = G_L2_LOSS + G_L3_LOSS +G_L4_LOSS
+                    loss_gen_total = loss_gen_total + loss_gausian
                 
                 # ssim loss 
                 if 'ssim' in self.params['total_loss_comp']:
@@ -201,5 +217,18 @@ class model(torch.nn.Module):
 
         return gen_out
 
+    def gausian_blurr_loss(self,real_img, fake_img):
+        octave1_layer2_fake=kornia.filters.gaussian_blur2d(fake_img,(3,3),(1,1))
+        octave1_layer3_fake=kornia.filters.gaussian_blur2d(octave1_layer2_fake,(3,3),(1,1))
+        octave1_layer4_fake=kornia.filters.gaussian_blur2d(octave1_layer3_fake,(3,3),(1,1))
+        octave1_layer5_fake=kornia.filters.gaussian_blur2d(octave1_layer4_fake,(3,3),(1,1))
+        octave2_layer1_fake=kornia.filters.blur_pool2d(octave1_layer5_fake, 1, stride=2)
+        octave1_layer2_real=kornia.filters.gaussian_blur2d(real_img,(3,3),(1,1))
+        octave1_layer3_real=kornia.filters.gaussian_blur2d(octave1_layer2_real,(3,3),(1,1))
+        octave1_layer4_real=kornia.filters.gaussian_blur2d(octave1_layer3_real,(3,3),(1,1))
+        octave1_layer5_real=kornia.filters.gaussian_blur2d(octave1_layer4_real,(3,3),(1,1))
+        octave2_layer1_real=kornia.filters.blur_pool2d(octave1_layer5_real, 1, stride=2)
+        G_L2 = self.MSE_LOSS(octave2_layer1_fake, octave2_layer1_real) 
+        return G_L2,octave2_layer1_fake,octave2_layer1_real
 
         
