@@ -7,14 +7,14 @@
 train_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/train'
 img_size : [256,256]
 in_channels : 3
-num_epochs : 10
-decay_epoch : 9
+num_epochs : 60
+decay_epoch : 45
 batch_size : 1
 device : 'cuda'
 #
 #----------------------------- Output -----------------------------------------------------
 output_path : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results'
-output_folder : 'U-Net/my_UNet_6_step'
+output_folder : 'U-Net/U_NET_4step_32'
 model_name : 'gen_G_weights_final.pth'
 #
 #
@@ -34,11 +34,7 @@ mean_IHC : [0.7687480146058773, 0.7460195554334789, 0.7200858060498716]
 std_IHC : [0.05067490897275364, 0.05804296102376095, 0.06596264508250156]
 
 mean_img_net : [0.485, 0.456, 0.406] 
-std_img_net : [0.229, 0.224, 0.225]
-
-# no contrast = 0
-
-contrast_IHC : 0
+std_img_net: [0.229, 0.224, 0.225]
 
 # 'grayscale' --------------> transform the image into grayscale => 3 in_channel to 1 
 # 'instance_norm' ----------> choose img_net or bci 
@@ -51,50 +47,78 @@ preprocess_IHC : []
 #------------------------------------------------------------------------------------------
 # Model Set up
 #------------------------------------------------------------------------------------------
-# "Resnet", "BCI_UNet", "my_Unet"
+# "my_Unet"
+# "Resnet"
+# "BCI_UNet"
 gen_architecture : "my_Unet"
-trained_model_path : "None"
+# set the directory where the to the model you want to load -----> model name: "gen_G_weights_final.pth"
+# "C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results/U-Net/My_Unet_4step_32/epoch_1_to_60"
+# "C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results/U-Net/U_NET_3step_16/epoch_1_to_60"
+trained_model_dir :  "None"
+
+# features are the is the channeldimention for the U_net and the disc
 # features are the is the channeldimention for the U_net 
 # the Unet posses 3 steps and a bottle neck 
 # feature*2
 # feature*4
 # feature*8
 # feature*16 ----> bottleneck 
-# ----------------------- BCI- U-Net ------------------------------------------------------
-num_steps : 6
-num_features : 64
-bottleneck_len : 1
-gen_features : 32
+num_steps : 4
+num_features : 32
+# initiate attention 
+attention : False
 
 # --------------------- Optimizer Settings ------------------------------------------------
 learn_rate_gen : 0.0002
-# the beta1 and beta2 for the Adam optimizer used for both the total generator optimizer 
+# the beta1 and beta2 for the Adam optimizer used for both the total generator optimizer and total disc optimizer 
 beta1 : 0.5   
 beta2 : 0.999  
 
 # --------------------- Loss Settings -----------------------------------------------------
-# availeble inputs :
-#   'ssim_loss' -------------> SSIM loss (1-ssim(fake,real))
-#   'psnr_loss' -------------> PSNR loss
-#   'hist_loss' -------------> compares histograms of the image channels and compares intersection of ral vs fake image 
+# aditional losses :
+#   'ssim' -------------> SSIM loss (1-ssim(fake,real))
+#   'psnr' -------------> PSNR loss
+#   'hist_loss' --------> compares histograms of the image channels and compares intersection of ral vs fake image 
 #   'gausian_loss' ----------> loss withgausian blurr  
 #   'mse_color' -------------> mse by color 
-
 total_loss_comp : []
 #
 # Loss Hyperparameters
 generator_lambda : 10
-ssim_lambda : 0.5
+disc_lambda : 100
+ssim_lambda : 1
 psnr_lambda : 0.05
-hist_lambda : 0.5
+hist_lambda : 10
+L1_lambda : 1
+lambda_color : 5
+lambda_gaus : 5
 
 #-----------------------------------------------------------------------------------------------
 # Testing
 #-----------------------------------------------------------------------------------------------
+test_idx : []
 test_dir : 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/Data_set_BCI_challange/val'
-num_test_epochs: 4
+num_test_epochs: 10
 plots_per_epoch : 1
-test_idx : [12,38,45,19,4]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -90,9 +90,10 @@ if test == True:
                 
                 result['epoch'].append(epoch)
                 test_data = loader.stain_transfer_dataset(  img_patch= epoch,
-                                                            params= params,
+                                                            img_size= params['img_size'],
                                                             HE_img_dir = HE_img_dir,
                                                             IHC_img_dir = IHC_img_dir,
+                                                            params=params
                                                             )
                 
                 test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 

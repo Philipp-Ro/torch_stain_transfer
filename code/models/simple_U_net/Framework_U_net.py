@@ -18,18 +18,13 @@ import utils
 from torchmetrics import StructuralSimilarityIndexMeasure
 from torchmetrics import PeakSignalNoiseRatio
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch.optim as optim
-from U_net_model import UNet
-import torchvision
-import matplotlib.pyplot as plt
-from BCI_UNet import UnetGenerator
 import kornia
-from Resnet_gen import ResnetGenerator
+import pickle
 
 class model(torch.nn.Module):
-    def __init__(self,params,net):
+    def __init__(self,params,net,epoch_path,train_eval):
         super(model, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
         # Initialize U_net
@@ -50,17 +45,17 @@ class model(torch.nn.Module):
         self.psnr = PeakSignalNoiseRatio().to(params['device'])
         self.params = params
         self.g_scaler = torch.cuda.amp.GradScaler()
-        self.d_scaler = torch.cuda.amp.GradScaler()
-        self.output_folder_path = os.path.join(self.params['output_path'],self.params['output_folder'])
-        self.checkpoint_folder = os.path.join(self.output_folder_path,"checkpoints")
-        self.result_dir = os.path.join(self.output_folder_path,'train_result.txt')
-        os.mkdir(self.checkpoint_folder)
-        os.mkdir(os.path.join(os.path.join(params['output_path'],params['output_folder']),"train_plots"))
+        self.epoch_path = epoch_path
+        self.train_eval = train_eval
+
 
     def fit(self):
-        train_eval ={}
-        train_eval['mse'] = []
-        train_eval['ssim'] = []
+        
+        train_result_dir = os.path.join(self.epoch_path,'train_result')
+        checkpoint_folder = os.path.join(self.epoch_path,"checkpoints")
+        trainplots_folder = os.path.join(self.epoch_path,"train_plots")
+        os.mkdir(checkpoint_folder)
+        os.mkdir(trainplots_folder)
         k =0
         best_perf = 2
 
@@ -79,9 +74,10 @@ class model(torch.nn.Module):
                 k=0
 
             train_data = loader.stain_transfer_dataset( img_patch=  k,
-                                                        params= self.params,
+                                                        img_size= self.params['img_size'],
                                                         HE_img_dir = HE_img_dir,
-                                                        IHC_img_dir = IHC_img_dir,                                                     
+                                                        IHC_img_dir = IHC_img_dir,  
+                                                        params=self.params                                                   
                                            )
             
             # get dataloader
@@ -95,9 +91,6 @@ class model(torch.nn.Module):
             
             for i, (real_HE, real_IHC,img_name) in train_loop :
 
-
-                if self.params['contrast_IHC']!=0:
-                    real_IHC = torchvision.transforms.functional.adjust_contrast(real_IHC,self.params['contrast_IHC'])
                 # -----------------------------------------------------------------------------------------
                 # Train U_net
                 # -----------------------------------------------------------------------------------------
@@ -150,7 +143,7 @@ class model(torch.nn.Module):
 
                     loss_ssim = (self.params['ssim_lambda']*loss_ssim)
                     loss_gen_total = loss_gen_total + loss_ssim
-                    print(loss_ssim)
+                   
 
                 # psnr loss 
                 if 'psnr_loss' in self.params['total_loss_comp']:
@@ -169,7 +162,7 @@ class model(torch.nn.Module):
                     loss_gen_total = loss_gen_total + hist_loss
 
                 # ------------------------- Apply Weights ---------------------------------------------------
-                print(loss_gen_total)
+                
                 self.opt_gen.zero_grad()
                 self.g_scaler.scale(loss_gen_total).backward()
                 self.g_scaler.step(self.opt_gen)
@@ -194,17 +187,15 @@ class model(torch.nn.Module):
                 utils.plot_img_set( real_HE = real_HE,
                                     fake_IHC=fake_IHC,
                                     real_IHC=real_IHC,
-                                    i=i,
-                                    params = self.params,
+                                    save_path = trainplots_folder,
                                     img_name = img_name,
-                                    step = 'train',
                                     epoch = epoch )
                 # safe a checkpoint 
                 epoch_name = 'gen_G_weights_'+str(epoch)
-                torch.save(self.gen.state_dict(),os.path.join(self.checkpoint_folder,epoch_name ) )
+                torch.save(self.gen.state_dict(),os.path.join(checkpoint_folder,epoch_name ) )
 
-            train_eval['mse'].append(np.mean(mse_list))
-            train_eval['ssim'].append(np.mean(ssim_list))
+            self.train_eval['mse'].append(np.mean(mse_list))
+            self.train_eval['ssim'].append(np.mean(ssim_list))
 
             current_perf = np.mean(mse_list)+(1-np.mean(ssim_list))
 
@@ -218,22 +209,13 @@ class model(torch.nn.Module):
                 best_perf = current_perf
                 gen_out = self.gen
 
-        # plot train results 
-        x = range(self.params['num_epochs'])
 
-        fig, axs = plt.subplots(2)
-        fig.suptitle('train_results')
-        axs[0].plot(x, train_eval['mse'])
-        axs[0].set_title('MSE')
-        axs[1].plot(x, train_eval['ssim'])
-        axs[1].set_title('SSIM')
-
-        fig.savefig(os.path.join(os.path.join(self.params['output_path'],self.params['output_folder']),"train_result.png"))
+        with open(train_result_dir, "wb") as fp:   #Pickling
+            pickle.dump(self.train_eval, fp)
 
 
 
-        return gen_out
-
+        return gen_out, self.train_eval
 
 
     def gausian_blurr_loss(self,real_img, fake_img):

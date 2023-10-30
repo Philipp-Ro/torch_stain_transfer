@@ -15,6 +15,8 @@ from BCI_UNet import UnetGenerator
 from ViT_model import ViT_Generator
 from Resnet_gen import ResnetGenerator
 from U_net_Generator_model import U_net_Generator
+import matplotlib.pyplot as plt
+import pickle
 
 train = True
 test = True
@@ -23,6 +25,7 @@ training_time = 0
 # --------------------------- load Parameters from config ----------------------------------
 config_path = os.path.join(Path.cwd(),'code\\models\\Pix2Pix\\config.yaml')
 params = utils.get_config_from_yaml(config_path)
+output_folder_path = os.path.join(params['output_path'],params['output_folder'])
 
 if train == True:
     
@@ -50,25 +53,56 @@ if train == True:
                                     mlp_ratio=params['mlp_ratio']
                                     ).to(params['device'])
         
-    if params['trained_model_path']!= "None":
-        gen.load_state_dict(torch.load(params['trained_model_path']))
+# --------------------------- load previous model ---------------------------------------------
+    train_eval ={}
+    if params['trained_model_dir']!= "None":
+        train_result_dir_load = os.path.join(params['trained_model_dir'],'train_result')
+        gen.load_state_dict(torch.load(os.path.join(params['trained_model_dir'],'gen_G_weights_final.pth')))
+        print('model loaded')
+        with open(train_result_dir_load, "rb") as fp:   # Unpickling
+            load_data_train = pickle.load(fp)
+        train_eval['mse'] = load_data_train['mse']
+        train_eval['ssim'] = load_data_train['ssim']
+        train_epoch_name = 'epoch_'+str(len(train_eval['mse']))+'_to_'+str(len(train_eval['mse'])+params['num_epochs'])
+    else:
+        train_eval['mse'] = []
+        train_eval['ssim'] = []
+        train_epoch_name = 'epoch_'+str(1)+'_to_'+str(len(train_eval['mse'])+params['num_epochs'])
 
-    model = Framework_Pix2Pix.model(params=params,gen=gen)
+    # get path folder :
+    epoch_path = os.path.join(output_folder_path,train_epoch_name)
+    os.mkdir(epoch_path)
+
+    # save config :
+    config_save_path =  os.path.join(epoch_path,'config.yaml')
+    utils.save_config_in_dir(config_save_path, params)
+
+    model = Framework_Pix2Pix.model(params=params,gen=gen,epoch_path=epoch_path,train_eval=train_eval)
     # --------------------------- Train Network ------------------------------------------------
     start = time.time()
-    gen = model.fit()
+    gen, train_eval = model.fit()
     stop = time.time()
 
     # ------------------------------------------------------------------------------------------
     # save the trained model 
     # ------------------------------------------------------------------------------------------
     training_time = (stop-start)/60
-    output_folder_path = os.path.join(params['output_path'],params['output_folder'])
-    model_path = os.path.join(output_folder_path,params['model_name'])
-    config_path =  os.path.join(output_folder_path,'config.yaml')
-
-    utils.save_config_in_dir(config_path, params)
+ 
+    model_path = os.path.join(epoch_path,params['model_name'])
     torch.save(gen.state_dict(), model_path)
+
+    # plot train results 
+    x = range(len(train_eval['mse']))
+
+    fig, axs = plt.subplots(2)
+    fig.suptitle('train_results')
+    axs[0].plot(x, train_eval['mse'])
+    axs[0].set_title('MSE')
+    axs[1].plot(x, train_eval['ssim'])
+    axs[1].set_title('SSIM')
+
+    fig.savefig(os.path.join(epoch_path,"train_result.png"))
+
 
 if test == True:
 # ------------------------------------------------------------------------------------------
@@ -100,5 +134,5 @@ if test == True:
         
 
         
-    model_testing = eval.test_network(model,params,training_time)
+    model_testing = eval.test_network(model,params,training_time,epoch_path)
     model_testing.eval()

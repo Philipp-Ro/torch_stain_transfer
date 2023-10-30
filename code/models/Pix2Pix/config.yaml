@@ -50,7 +50,7 @@ preprocess_IHC : []
 # "transformer"
 # "Resnet"
 gen_architecture : "my_Unet"
-trained_model_path :  "C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results/U-Net/my_UNet/gen_G_weights_final.pth"
+trained_model_dir :  "None"
 
 # features are the is the channeldimention for the U_net and the disc
 # features are the is the channeldimention for the U_net 

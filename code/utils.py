@@ -32,19 +32,10 @@ def save_config_in_dir(saving_dir,code):
 
 
 
-def plot_img_set(real_HE, fake_IHC, real_IHC, i,params,img_name,step,epoch):
-    if step == 'train' :
-        fig_name = str(epoch)+'epoch_Train_plot_'+ img_name[0]+ '.png'
-        save_path=os.path.join(os.path.join(params['output_path'],params['output_folder']),"train_plots")
+def plot_img_set(real_HE, fake_IHC, real_IHC, save_path,img_name,epoch):
+    
+    fig_name = str(epoch)+'_epoch_'+ img_name[0]
         
-
-    elif step == 'test':
-        fig_name = 'Test_plot_'+ img_name[0]+ '.png'
-        save_path=os.path.join(os.path.join(params['output_path'],params['output_folder']),"test_plots")
-
-    else:
-        print('SET STEP TO TRAIN OR TEST ')
-
     real_HE = real_HE.cpu().detach().numpy()
     fake_IHC = fake_IHC.cpu().detach().numpy()
     real_IHC = real_IHC.cpu().detach().numpy()
@@ -114,12 +105,62 @@ def publishing_plot(images, model_dict):
     # images["patch_num"] = [0,1,2,3]
     # for each img_num one patch_num
     # len(images["img_num"])==len(images["patch_num"])!!!
+    plot_img_IHC, plot_img_HE = get_publish_plot_img(images=images)
+
+    img_arr = []
+    columb_names = []
+    columb_names.append('real_HE')
+    columb_names.append('real_IHC')
+    for architecture_name in model_dict:
+        columb_names.append(architecture_name)
+        #for version in model_dict[architecture_name]:
+            #columb_names.append(architecture_name)
+    
+    for idx in range(len(plot_img_IHC)):
+        real_HE = plot_img_HE[idx]
+        real_IHC = plot_img_IHC[idx]
+
+        real_HE_plot = real_HE.cpu().detach().numpy()
+        real_IHC_plot = real_IHC.cpu().detach().numpy()
+
+        real_HE_plot = np.squeeze(real_HE_plot )
+        real_IHC_plot = np.squeeze(real_IHC_plot )
+
+        real_HE_plot = torch.from_numpy(real_HE_plot) 
+        real_IHC_plot = torch.from_numpy(real_IHC_plot)
+
+        img_arr.append(real_HE_plot)
+        img_arr.append(real_IHC_plot)
 
 
+        for architecture_name in model_dict:
+            for version in model_dict[architecture_name]:
 
-    grid = make_grid(img_arr, nrow =len(all_models))
-    plot_img = torchvision.transforms.ToPILImage()(grid)
-    return plot_img
+                model, model_name, params = load_trained_model(architecture_name,version)
+                
+            
+
+                
+                if model_name[0].__contains__('diffusion---'):
+                        
+                    diffusion = Diffusion(noise_steps=params['noise_steps'],
+                                            beta_start=params['beta_start'],
+                                            beta_end=params['beta_end'],
+                                            img_size=params['img_size'],
+                                            device=params['device'])
+                    fake_IHC = diffusion.sample(model , n=real_IHC.shape[0],y=real_HE)
+                else:
+                    fake_IHC = model(real_HE)
+
+                fake_IHC = fake_IHC.cpu().detach().numpy()
+                fake_IHC = np.squeeze(fake_IHC)
+                fake_IHC = torch.from_numpy(fake_IHC)
+                img_arr.append(fake_IHC)
+
+    
+    grid = make_grid(img_arr, nrow =len(columb_names))
+    
+    return grid, columb_names
     
 
 
@@ -130,78 +171,39 @@ def get_publish_plot_img(images):
 
     HE_img_dir = os.path.join(test_path,'HE')
     IHC_img_dir = os.path.join(test_path,'IHC')
-    config_path = 'C:/Users/phili/OneDrive/Uni/WS_22/Masterarbeit/Masterarbeit_Code_Philipp_Rosin/torch_stain_transfer/masterthesis_results/U-Net/4_step_f32/config.yaml'
-    # these universal params set image size !
-    params = get_config_from_yaml(config_path)
-
-    test_data_0 = loader.stain_transfer_dataset(  img_patch= 0,
-                                                        params= params,
-                                                        HE_img_dir = HE_img_dir,
-                                                        IHC_img_dir = IHC_img_dir,
-                                                        )
-            
-    test_data_loader_0 = DataLoader(test_data_0, batch_size=1, shuffle=False) 
-
-    test_data_1 = loader.stain_transfer_dataset(  img_patch= 1,
-                                                        params= params,
-                                                        HE_img_dir = HE_img_dir,
-                                                        IHC_img_dir = IHC_img_dir,
-                                                        )
-            
-    test_data_loader_1 = DataLoader(test_data_0, batch_size=1, shuffle=False) 
-
-    test_data_2 = loader.stain_transfer_dataset(  img_patch= 2,
-                                                        params= params,
-                                                        HE_img_dir = HE_img_dir,
-                                                        IHC_img_dir = IHC_img_dir,
-                                                        )
-            
-    test_data_loader_2 = DataLoader(test_data_0, batch_size=2, shuffle=False) 
-
-    test_data_3 = loader.stain_transfer_dataset(  img_patch= 3,
-                                                        params= params,
-                                                        HE_img_dir = HE_img_dir,
-                                                        IHC_img_dir = IHC_img_dir,
-                                                        )
-            
-    test_data_loader_3 = DataLoader(test_data_3, batch_size=1, shuffle=False) 
-
-
-
+    patches = np.unique(images['patch_num'])
     all_img =np.array(images["img_num"])
     all_img_patches =np.array(images["patch_num"])
 
-    images_0_patch = all_img[np.where(all_img_patches==0)]     
-    images_1_patch = all_img[np.where(all_img_patches==1)] 
-    images_2_patch = all_img[np.where(all_img_patches==2)] 
-    images_3_patch = all_img[np.where(all_img_patches==3)]  
-
     plot_img_IHC = []
     plot_img_HE = []
+    config_path = os.path.join(Path.cwd(),'code\\models\\simple_U_net\\config.yaml')
+    #config_path = os.path.join(Path.cwd(),'models\\simple_U_net\\config.yaml')
+    params = get_config_from_yaml(config_path)
+    for current_patch in patches:
+
+
+        test_data_0 = loader.stain_transfer_dataset(  img_patch= current_patch,
+                                                        img_size= [256,256],
+                                                        HE_img_dir = HE_img_dir,
+                                                        IHC_img_dir = IHC_img_dir,
+                                                        params=params,
+                                                        )
+            
+        test_data_loader_0 = DataLoader(test_data_0, batch_size=1, shuffle=False) 
+
+    
+
+
+        images_patch = all_img[np.where(all_img_patches==current_patch)]     
  
-    for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader_0):
-        if i in images_0_patch:
-            plot_img_IHC.append(real_IHC)
-            plot_img_HE.append(real_HE)
 
 
-    for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader_1):
-        if i in images_1_patch:
-            plot_img_IHC.append(real_IHC)
-            plot_img_HE.append(real_HE)
+        for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader_0):
+            if i in images_patch:
+                plot_img_IHC.append(real_IHC)
+                plot_img_HE.append(real_HE)
 
-
-
-    for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader_2):
-        if i in images_1_patch:
-            plot_img_IHC.append(real_IHC)
-            plot_img_HE.append(real_HE)
-
-
-    for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader_3):
-        if i in images_1_patch:
-            plot_img_IHC.append(real_IHC)
-            plot_img_HE.append(real_HE)
 
     return plot_img_IHC, plot_img_HE
 
@@ -227,7 +229,7 @@ def load_trained_model(architecture_name,version):
         UNet_model.load_state_dict(torch.load(model_path))
         model_name =['U-Net---'+version]
 
-        return UNet_model , model_name
+        return UNet_model , model_name, params
         
         # ----------------------------- pix2pix -------------------------------------------
     if architecture_name == "pix2pix":
@@ -263,7 +265,7 @@ def load_trained_model(architecture_name,version):
         pix2pix_model.load_state_dict(torch.load(model_path))
         model_name =['pix2pix---'+version]
 
-        return pix2pix_model , model_name
+        return pix2pix_model , model_name, params
         
         # --------------------------- ViT --------------------------------------
     if architecture_name == "ViT":
@@ -284,10 +286,10 @@ def load_trained_model(architecture_name,version):
         ViT_model.load_state_dict(torch.load(model_path))
         model_name =['ViT---'+version]
 
-        return ViT_model, model_name
+        return ViT_model, model_name, params
         
 
-    if architecture_name == "diff_model":
+    if architecture_name == "diffusion_model":
         path = 'masterthesis_results\\diffusion_model\\'+version
         config_path = os.path.join(Path.cwd(),path+'\\config.yaml')
         model_path = os.path.join(path,'gen_G_weights_final.pth')
@@ -295,18 +297,12 @@ def load_trained_model(architecture_name,version):
         diff_model = UNet().to(params['device'])
         diff_model.load_state_dict(torch.load(model_path))
                 
-        diffusion = Diffusion(noise_steps=params['noise_steps'],
-                              beta_start=params['beta_start'],
-                              beta_end=params['beta_end'],
-                              img_size=params['img_size'],
-                              device=params['device'])
-                
         diff_model.load_state_dict(torch.load(model_path))
         model_name =['diffusion---'+version]
 
-        return diffusion, diff_model, model_name
+        return diff_model, model_name, params
     
-    if architecture_name == "Swin_transformer":
+    if architecture_name == "swin_transformer":
             
         path = 'masterthesis_results\\Swin_transformer\\'+version
         config_path = os.path.join(Path.cwd(),path+'\\config.yaml')
@@ -325,9 +321,10 @@ def load_trained_model(architecture_name,version):
                                                                                         ).to(params['device'])
         Swin_model.load_state_dict(torch.load(model_path))
                 
-        ViT_model.load_state_dict(torch.load(model_path))
+        Swin_model.load_state_dict(torch.load(model_path))
         model_name =['Swin_transformer---'+version]
-        return Swin_model , model_name
+
+        return Swin_model , model_name, params
 
 
 

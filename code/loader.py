@@ -19,14 +19,13 @@ import torchvision.transforms.functional as fn
 
 
 class stain_transfer_dataset(Dataset):
-    def __init__(self,img_patch, HE_img_dir,IHC_img_dir,params):
+    def __init__(self,img_patch, HE_img_dir,IHC_img_dir,img_size,params):
         self.HE_img_dir = HE_img_dir
         self.IHC_img_dir = IHC_img_dir
         self.img_names =  os.listdir(self.HE_img_dir)
         self.params = params
-
-        if params['img_size'][0]==params['img_size'][1]:
-            self.img_size = params['img_size'][0]
+        if img_size[0] == img_size[1]:
+            self.img_size = img_size[0]
         else:
             print('IMAGE SIZE MUST BE SQUARE')
 

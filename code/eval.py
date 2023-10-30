@@ -3,34 +3,46 @@ import torch
 from torch.utils.data import DataLoader
 from torchmetrics import StructuralSimilarityIndexMeasure
 from torchmetrics import PeakSignalNoiseRatio
-import loader
+import new_loader
 import numpy as np
 import random
 import utils
 import torch.nn as nn
+from pathlib import Path
+import pickle
 
 
 class test_network():
-    def __init__(self,model,params,train_time):
-        self.output_folder_path = os.path.join(params['output_path'],params['output_folder'])
-        self.model_path = os.path.join(self.output_folder_path,params['model_name'])
-        self.config_path =  os.path.join(self.output_folder_path,'config.yaml')
-        test_path = params['test_dir']
-        self.HE_img_dir = os.path.join(test_path,'HE')
-        self.IHC_img_dir = os.path.join(test_path,'IHC')
-        self.result_dir = os.path.join(self.output_folder_path,'result.txt')
-        self.params = params
-        self.train_time = train_time
-        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(params['device'])
-        self.psnr = PeakSignalNoiseRatio().to(params['device'])
-        self.MSE_LOSS = nn.MSELoss().to(params['device'])
+    def __init__(self, args, model, model_name):
+        self.args = args
 
-        self.model = model
-        os.mkdir(os.path.join(os.path.join(params['output_path'],params['output_folder']),"test_plots"))
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(args.device)
+        self.psnr = PeakSignalNoiseRatio().to(args.device)
+        self.MSE_LOSS = nn.MSELoss().to(args.device)
+
+        self.model = model.to(args.device)
+
+        self.results_dir = os.path.join(Path.cwd(),"masterthesis_results")
+        model_dir = os.path.join(self.results_dir, model_name)
+
+        self.tr_path = os.path.join(model_dir,'train_result')
+        
+        with open(self.tr_path, "rb") as fp:   # Unpickling
+            self.train_eval = pickle.load(fp)
+
+        self.count =  len(self.train_eval['train_mse'])
+        testing_name = "Testing_"+str(self.count)+"_epochs"
+        testing_path = os.path.join(model_dir,testing_name)
+        os.mkdir(testing_path)
+
+        self.model_path = os.path.join(model_dir,'final_weights_gen.pth')
+        self.resultfile_path = os.path.join(testing_path,'result.txt')
+        self.testplots_folder = os.path.join(testing_path,"plots")
+        os.mkdir(self.testplots_folder)
 
     def eval(self):
         self.model.load_state_dict(torch.load(self.model_path))
-        #self.model.eval()    
+        
 
         # set up result vector 
         result = {}
@@ -42,18 +54,14 @@ class test_network():
         result['mse_mean'] = []
         result['mse_std']= []
 
-        result['training_time_min'] = self.train_time
 
-        for epoch in range(self.params['num_test_epochs']):
+
+        for epoch in range(self.args.num_test_<epochs):
     
             result['epoch'].append(epoch)
-            test_data = loader.stain_transfer_dataset(  img_patch= epoch,
-                                                        params= self.params,
-                                                        HE_img_dir = self.HE_img_dir,
-                                                        IHC_img_dir = self.IHC_img_dir,
-                                                        )
+            test_loader = new_loader.stain_transfer_dataset( img_patch=epoch, set='test',args = self.args) 
             
-            test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
+            test_data_loader = DataLoader(test_loader, batch_size=1, shuffle=False) 
 
             # ------ set up ssim and psnr ----------------------------------------------------
             ssim_list = []
@@ -62,11 +70,11 @@ class test_network():
 
             # ----------- get plots 
             plot_list = []
-            if self.params['test_idx'] != []:
-                plot_list = self.params['test_idx']
+            if self.args.testplot_idx != []:
+                plot_list = self.args.testplot_idx
             else:
                 # get random instances 
-                for i in range(0,self.params['plots_per_epoch']):
+                for i in range(0,2):
                     n = random.randint(1,len(test_data_loader))
                     plot_list.append(n)
 
@@ -78,16 +86,14 @@ class test_network():
                 mse_score = float(self.MSE_LOSS(fake_IHC, real_IHC))
 
                 if i in plot_list:
+                    utils.plot_img_set( real_HE = real_HE,
+                                    fake_IHC=fake_IHC,
+                                    real_IHC=real_IHC,
+                                    save_path = self.testplots_folder,
+                                    img_name = img_name,
+                                    epoch = epoch )
                   
-                    utils.plot_img_set( real_HE=real_HE,
-                                        fake_IHC=fake_IHC,
-                                        real_IHC=real_IHC,
-                                        i=i,
-                                        params = self.params,
-                                        img_name = img_name,
-                                        step = 'test',
-                                        epoch = epoch )
-            
+                    
 
                 ssim_list.append(ssim_score)
                 psnr_list.append(psnr_score)
@@ -113,7 +119,7 @@ class test_network():
         result['total_PSNR_mean'] = np.mean( result['psnr_mean'])
 
         # write file
-        with open(self.result_dir, 'w') as f: 
+        with open(self.resultfile_path, 'w') as f: 
             for key, value in result.items(): 
                 f.write('%s:%s\n' % (key, value))
 

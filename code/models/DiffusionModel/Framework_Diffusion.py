@@ -77,9 +77,10 @@ class model(torch.nn.Module):
                 k=0
 
             train_data = loader.stain_transfer_dataset( img_patch=  k,
-                                                        params= self.params,
+                                                        img_size= self.params['img_size'],
                                                         HE_img_dir = HE_img_dir,
-                                                        IHC_img_dir = IHC_img_dir,                                                     
+                                                        IHC_img_dir = IHC_img_dir,     
+                                                        params=self.params                                                
                                            )
             
             # get dataloader
@@ -102,8 +103,10 @@ class model(torch.nn.Module):
                 self.opt_U_net.zero_grad()
 
                 t = self.diffusion.sample_timesteps(real_IHC.shape[0]).to(self.params['device'])
+                # ------------------------------- noise image with or without condition ---------------------
                 if self.params['conditional'] == True:
                     x_t, noise = self.diffusion.noise_img(real_IHC, t, real_HE)
+
                 elif self.params['conditional'] == False:
                     x_t, noise = self.diffusion.noise_img(real_IHC, t, None)
                 
