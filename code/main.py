@@ -38,7 +38,7 @@ def my_args():
     parser.add_argument('--img_size', type=int, default=256, help='Image size')
     parser.add_argument('--in_channels', type=int, default=3, help='input channels')
     parser.add_argument('--img_transforms', type=list, default=[], help='choose image transforms from normalize,colorjitter,horizontal_flip,grayscale')
-    parser.add_argument('--num_epochs', type=int, default=5, help='epoch num')
+    parser.add_argument('--num_epochs', type=int, default=100, help='epoch num')
     parser.add_argument('--decay_epoch', type=int, default=80, help='decay epoch num')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--device', type=str, default="cuda", help='device')
