@@ -6,10 +6,11 @@ from torchmetrics import PeakSignalNoiseRatio
 import new_loader
 import numpy as np
 import random
-import utils
+
 import torch.nn as nn
 from pathlib import Path
 import pickle
+import plot_utils
 
 
 class test_network():
@@ -56,7 +57,7 @@ class test_network():
 
 
 
-        for epoch in range(self.args.num_test_<epochs):
+        for epoch in range(self.args.num_test_epochs):
     
             result['epoch'].append(epoch)
             test_loader = new_loader.stain_transfer_dataset( img_patch=epoch, set='test',args = self.args) 
@@ -85,8 +86,8 @@ class test_network():
                 psnr_score = float(self.psnr(fake_IHC, real_IHC))
                 mse_score = float(self.MSE_LOSS(fake_IHC, real_IHC))
 
-                if i in plot_list:
-                    utils.plot_img_set( real_HE = real_HE,
+                if i in plot_list and epoch ==7:
+                    plot_utils.plot_img_set( real_HE = real_HE,
                                     fake_IHC=fake_IHC,
                                     real_IHC=real_IHC,
                                     save_path = self.testplots_folder,

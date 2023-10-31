@@ -1,12 +1,11 @@
 import os
-import torchvision
 import torch
 from torch.utils.data import Dataset
 import random
 from PIL import Image
 import torchvision.transforms as transforms
 import numpy as np
-import torchvision.transforms.functional as fn
+import torch.nn as nn
 # -------------------------------------------------------------------------------------------------------------------------
 # Loader
 # -------------------------------------------------------------------------------------------------------------------------
@@ -27,11 +26,13 @@ class stain_transfer_dataset(Dataset):
         if set == 'test':
             self.HE_img_dir = os.path.join(args.test_data,'HE')
             self.IHC_img_dir = os.path.join(args.test_data,'IHC')
-
+        
         self.img_names =  os.listdir(self.HE_img_dir)
         self.img_size = args.img_size
         self.img_patch = img_patch
-        
+
+        # init preprossing
+        self.preprocess_img = init_img_preproces(args)
 
     def __len__(self):
         lst = os.listdir(self.HE_img_dir)
@@ -41,36 +42,38 @@ class stain_transfer_dataset(Dataset):
 
     def __getitem__(self, idx):
         seed = np.random.randint(2147483647) 
+
+        HE_img = load_img(idx= idx, folder_dir=self.HE_img_dir, img_names=self.img_names)
+        IHC_img = load_img(idx= idx, folder_dir=self.IHC_img_dir, img_names=self.img_names)
+        
         random.seed(seed) 
         torch.manual_seed(seed)
+        HE_tensor= self.preprocess_img(HE_img)
 
-        HE_img= load_image_to_tensor(self,idx= idx, folder_dir=self.HE_img_dir, img_names=self.img_names, preprocess_list=self.args.img_transforms)
-        IHC_img = load_image_to_tensor(self,idx= idx, folder_dir=self.IHC_img_dir, img_names=self.img_names, preprocess_list=self.args.img_transforms)
+        random.seed(seed) 
+        torch.manual_seed(seed)
+        IHC_tensor = self.preprocess_img(IHC_img)
 
-        HE_img = HE_img.to(self.args.device)
-        IHC_img = IHC_img.to(self.args.device)
 
-     
-        HE_patches = HE_img.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
-        IHC_patches = IHC_img.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
-
+        HE_patches = HE_tensor.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
+        IHC_patches = IHC_tensor.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
 
         # reshape the images 
-        HE_tensor = reshape_img(HE_patches, self.img_size, self.img_patch)
-        IHC_tensor = reshape_img(IHC_patches, self.img_size, self.img_patch)
-       
-        return HE_tensor,  IHC_tensor, self.img_names[idx]
+        HE_out = reshape_img(HE_patches, self.img_size, self.img_patch)
+        IHC_out = reshape_img(IHC_patches, self.img_size, self.img_patch)
+
+        HE_out = HE_out.to(self.args.device)
+        IHC_out = IHC_out.to(self.args.device)
+
+        return HE_out,  IHC_out, self.img_names[idx]
 
 
-def load_image_to_tensor(self,idx, folder_dir, img_names, preprocess_list):
+def load_img(idx, folder_dir, img_names):
     img_path = os.path.join(folder_dir, img_names[idx])
     pil_img = Image.open(img_path)
 
-    img_tensor = preprocess_img(self,preprocess_list, pil_img)
-  
-
-
-    return img_tensor
+    return pil_img
+    
 
 
 def reshape_img(img, img_size, img_patch):
@@ -80,35 +83,38 @@ def reshape_img(img, img_size, img_patch):
     img = img[img_patch,:,:,:]
     return img
 
-def preprocess_img(self,preprocess_list, img_tensor):
 
+
+
+def init_img_preproces(args):
     transform_list = []
-    seed = np.random.randint(2147483647) 
-    random.seed(seed) 
-    torch.manual_seed(seed)
+
     # check the preprocess list and add the different transforms 
-    if "normalise" in preprocess_list and not self.args.model=='Diffusion':
+    if "normalise" in args.img_transforms and not args.model=='Diffusion':
         
         mean =  [0.485, 0.456, 0.406] 
         std = [0.229, 0.224, 0.225]
         transform_list.append(transforms.Normalize(mean, std))
 
-    if "colorjitter" in preprocess_list:
-        transform_list.append(transforms.ColorJitter(brightness=(0.7,1), contrast = (1,3), saturation=(0.7,1.3), hue=(-0.1,0.1)))
+    if "colorjitter" in args.img_transforms:
+        transform_list.append(transforms.ColorJitter(contrast = (1,3)))
 
-    if "grayscale" in preprocess_list:
+    if "grayscale" in args.img_transforms:
          transform_list.append(transforms.Grayscale(3))
 
-    transform_list.append(transforms.ToTensor())
+    if "horizontal_flip"in args.img_transforms:
+        transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
 
-    if self.args.diff_model:
+    if "vertical_flip"in args.img_transforms:
+        transform_list.append(transforms.RandomVerticalFlip(p=0.5))
+
+    if args.diff_model:
         transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
 
+    transform_list.append(transforms.ToTensor())
     preprocess_img = transforms.Compose(transform_list)
-    img_preprocessed = preprocess_img(img_tensor)
 
-
-    return img_preprocessed
+    return preprocess_img
 
 
 
