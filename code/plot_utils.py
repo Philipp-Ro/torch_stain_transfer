@@ -7,38 +7,38 @@ from pathlib import Path
 from architectures.Diffusion_model import Diffusion
 import torch
 import utils
+import torchvision.transforms as T
 
 
 
 # plot the train MSE/SSIM/PSNR
-def plot_trainresult(args,save_path,train_eval):
-    x = range(len(train_eval['train_mse']))
+def plot_trainresult(args, save_path, train_eval, test_eval):
     fig, axs = plt.subplots(3)
-    fig.suptitle('Training and Validation results')
 
-    axs[0].plot(x, train_eval['train_mse'],label='train_mse')
+    axs[0].plot(train_eval['x'], train_eval['MSE'],label='train MSE')
     if not args.diff_model:
-        axs[0].plot(x, train_eval['val_mse'],label='val_mse')
+        axs[0].plot(test_eval['x'], test_eval['MSE'],label='test MSE')
     axs[0].legend(loc="upper right",fontsize='xx-small')
     axs[0].set_xlabel(xlabel='epoch',loc='right',labelpad=2)
     axs[0].set_title('MSE',loc='left')
 
-    axs[1].plot(x, train_eval['train_ssim'],label='train_ssim')
+    axs[1].plot(train_eval['x'], train_eval['SSIM'],label='train SSIM')
     if not args.diff_model:
-        axs[1].plot(x, train_eval['val_ssim'],label='val_ssim')
+        axs[1].plot(test_eval['x'], test_eval['SSIM'],label='test SSIM')
     axs[1].legend(loc="lower right",fontsize='xx-small')
     axs[1].set_xlabel(xlabel='epoch',loc='right',labelpad=2)
     axs[1].set_title('SSIM',loc='left')
 
-    axs[2].plot(x, train_eval['train_psnr'],label='train_psnr')
+    axs[2].plot(train_eval['x'], train_eval['PSNR'],label='train PSNR')
     if not args.diff_model:
-        axs[2].plot(x, train_eval['val_psnr'],label='val_psnr')
+        axs[2].plot(test_eval['x'], test_eval['PSNR'],label='test PSNR')
     axs[2].legend(loc="lower right",fontsize='xx-small')
     axs[2].set_xlabel(xlabel='epoch',loc='right',labelpad=2)
     axs[2].set_title('PSNR',loc='left')
         
     plt.subplots_adjust(hspace=1.3)
-    fig.savefig(os.path.join(save_path,"Train_loss_plots.png"))
+    figurename = "Train_loss_plots_.png"
+    fig.savefig(os.path.join(save_path,figurename))
 
 
 # plot image set in the train and test loop 
@@ -80,39 +80,36 @@ def plot_img_set(real_HE, fake_IHC, real_IHC, save_path,img_name,epoch):
 
 # get all images for publisching plot 
 def get_publish_plot_img(args,images):
-    patches = np.unique(images['patch_num'])
-    all_img =np.array(images["img_num"])
-    all_img_patches =np.array(images["patch_num"])
+
+    plot_names =images["img_name"]
 
     plot_img_IHC = []
     plot_img_HE = []
 
-    for current_patch in patches:
-
-        test_data = new_loader.stain_transfer_dataset( img_patch=current_patch, set='train',args = args) 
-        test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
-
-    
+    test_data = new_loader.stain_transfer_dataset( img_patch=0, set='test',args = args) 
+    test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
+    transform_resize = T.Resize((256,256))
 
 
-        images_patch = all_img[np.where(all_img_patches==current_patch)]     
- 
+    for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
+        
+        if img_name[0] in plot_names:
+            real_HE = transform_resize(real_HE)
+            real_IHC = transform_resize(real_IHC)
 
-
-        for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
-            if i in images_patch:
-                plot_img_IHC.append(real_IHC)
-                plot_img_HE.append(real_HE)
+            plot_img_IHC.append(real_IHC)
+            plot_img_HE.append(real_HE)
 
 
     return plot_img_IHC, plot_img_HE
 
 # predict all images with models for publishing plot
-def predict_all_img(args,images,model_dict):
-    plot_img_IHC, plot_img_HE = get_publish_plot_img(images=images)
-
+def predict_all_img(args,images,model_dict,gan_flag):
+    plot_img_IHC, plot_img_HE = get_publish_plot_img(args=args, images=images)
+    model_num =3
     img_arr = []
     num_samples = len(plot_img_IHC)
+    print(len(plot_img_IHC))
 
     # cycle through images
     for idx in range(len(plot_img_IHC)):
@@ -129,21 +126,31 @@ def predict_all_img(args,images,model_dict):
         real_HE_plot  = np.transpose(real_HE_plot , (1, 2, 0))
 
         img_arr.append(real_HE_plot)
+        
         img_arr.append(real_IHC_plot)
-
+        
+        num_models=0
         #cycle through models 
-        num_models = 0
         for architecture_name in model_dict:
+  
             for version in model_dict[architecture_name]:
+
                 args.model = architecture_name
                 args.type = version
                 
                 model, model_name = utils.load_model(args)
+                model = model.to(args.device)
+
                 model_dir = os.path.join(Path.cwd(),"masterthesis_results")
+                if gan_flag == True:
+                    model_dir = os.path.join(model_dir,"Pix2Pix")
+
                 train_path = os.path.join(model_dir,model_name)
                 if os.path.isdir(train_path):
+                    print(architecture_name)
                     best_model_weights = os.path.join(train_path,'final_weights_gen.pth')
                     model.load_state_dict(torch.load(best_model_weights))
+                    model = model.to(args.device)
                 else:
                     print('MODEL NOT TRAINED CHECK MODEL DICT')
 
@@ -158,18 +165,23 @@ def predict_all_img(args,images,model_dict):
                 fake_IHC = fake_IHC.cpu().detach().numpy()
                 fake_IHC = np.squeeze(fake_IHC)
                 fake_IHC = np.transpose(fake_IHC, (1, 2, 0))
-
+                num_models = num_models+1
                 #fake_IHC = torch.from_numpy(fake_IHC)
                 img_arr.append(fake_IHC)
-                num_models = num_models+1
+                print('append predict')
+                #num_models = num_models+1
+
     return img_arr, num_samples, num_models
 
-def get_publishing_plot(args,images,model_dict,save_path,plot_name):
-    img_arr, num_samples, num_models = predict_all_img(args, images, model_dict)
+def get_publishing_plot(args,images,model_dict,gan_flag,save_path,plot_name):
+    img_arr, num_samples, num_models = predict_all_img(args, images, model_dict,gan_flag)
     images = img_arr  
+
     num_rows = num_samples  
-    num_cols = num_models
+    num_cols = num_models+2
+
     column_labels = ['HE \n Input','IHC \n Target']
+    row_labels = ['img\ngroup 0','img\ngroup 1+','img\ngroup 2+','img\ngroup 3+']
     for architecture_name in model_dict:
             for version in model_dict[architecture_name]:
                 column_labels.append(architecture_name+ '\n'+version)
@@ -185,7 +197,7 @@ def get_publishing_plot(args,images,model_dict,save_path,plot_name):
     for ax in axes.ravel():
         ax.set_aspect('equal')
     
-    
+
     # Create subplots and labels
     for i in range(num_rows):
         for j in range(num_cols):
@@ -199,11 +211,13 @@ def get_publishing_plot(args,images,model_dict,save_path,plot_name):
     # Labels for columns at the very top
     for j, label in enumerate(column_labels):
         ax = axes[0, j]
-        ax.set_title(label, fontsize=15, pad=10)  
+        ax.set_title(label, fontsize=18, pad=10)  
+
+    for i, label in enumerate(row_labels):
+        ax = axes[i, 0]
+        plt.gcf().text(0.04, 0.195+(i*0.195), label, fontsize=18)
+
  
-
-    
-
 
     plt.subplots_adjust(wspace=0, hspace=0.01)
     plt.savefig(os.path.join(save_path,plot_name))

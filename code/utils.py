@@ -7,6 +7,9 @@ from architectures.ViT_model import ViT_Generator
 from architectures.SwinTransformer_model import SwinTransformer
 from architectures.Unet_diff import UNet
 from architectures.Resnet_gen import ResnetGenerator
+import numpy as np
+import new_loader
+from torch.utils.data import DataLoader
 # denormalize
 def denomalise(mean,std,img):
     
@@ -51,26 +54,37 @@ def gausian_blurr_loss(MSE_LOSS,real_img, fake_img):
     return G_L2,octave2_layer1_fake,octave2_layer1_real
 
 def load_model(args):
+    if args.model == "None":
+        model = "None"
+        model_name = "None"
+
     if args.model == "U_Net":
-        if args.type =="S":
+        attention = False
+        if "S" in args.type:
             features= 16
             steps = 3
             model_name = "U-Net/3step_16f"
+            if "+att" in args.type:
+                model_name = model_name+'+att'
+                attention = True
 
-        if args.type =="M":
+        if "M" in args.type:
             features= 32
             steps = 4
             model_name = "U-Net/4step_32f"
+            if "+att" in args.type:
+                model_name = model_name+'+att'
+                attention = True
 
-        if args.type =="L":
+        if "L" in args.type:
             features= 64
             steps = 5
             model_name = "U-Net/5step_64f"
-        
-        if args.attention:
-            model = model_name+'+att'
+            if "+att" in args.type:
+                model_name = model_name+'+att'
+                attention = True     
 
-        model = U_net_Generator( in_channels=args.in_channels , out_channels=3, features=features, steps=steps, attention=args.attention)
+        model = U_net_Generator( in_channels=args.in_channels , out_channels=3, features=features, steps=steps, attention=attention)
 
     if args.model == "ViT":
         if args.type =="S":
@@ -87,8 +101,13 @@ def load_model(args):
             num_blocks =3
             num_heads = 8
             model_name = "ViT/3_block_8head"
+        
+        if args.img_resize:
+            img_size_in = 256
+        else:
+            img_size_in = args.img_size
 
-        model = ViT_Generator(  chw = [args.in_channels, args.img_size, args.img_size],
+        model = ViT_Generator(  chw = [args.in_channels, img_size_in, img_size_in],
                             patch_size = [4,4],
                             num_heads = num_heads, 
                             num_blocks = num_blocks,
@@ -172,20 +191,137 @@ def load_model(args):
             args.diff_noise_steps = 2000
         
         print('diffusionn model')
-        model_name = 'diffusion_model/' + model_name
+        model_name = 'diffusion_model/diff_1000_steps' 
 
 
     return model , model_name
 
+def init_eval():
+        eval = {}
+        eval['total'] = {}
+        eval['total']['MSE_mean'] = []
+        eval['total']['SSIM_mean'] = []
+        eval['total']['PSNR_mean'] = []
+        eval['total']['num_img'] = 0
+
+        eval['group_0']= {}
+        eval['group_0']['MSE_mean'] = []
+        eval['group_0']['SSIM_mean'] = []
+        eval['group_0']['PSNR_mean'] = []
+        eval['group_0']['num_img'] = 0
+
+        eval['group_1']= {}
+        eval['group_1']['MSE_mean'] = []
+        eval['group_1']['SSIM_mean'] = []
+        eval['group_1']['PSNR_mean'] = []
+        eval['group_1']['num_img'] = 0
+
+        eval['group_2']= {}
+        eval['group_2']['MSE_mean'] = []
+        eval['group_2']['SSIM_mean'] = []
+        eval['group_2']['PSNR_mean'] = []
+        eval['group_2']['num_img'] = 0
+
+        eval['group_3']= {}
+        eval['group_3']['MSE_mean'] = []
+        eval['group_3']['SSIM_mean'] = []
+        eval['group_3']['PSNR_mean'] = []
+        eval['group_3']['num_img'] = 0
+
+        eval['prediction_time']= 0
+        eval['train_time'] = 0
+
+        return eval
+
+def store_single_img_eval(mse_score, ssim_score, psnr_score, img_name, mse_list, ssim_list, psnr_list):
+    if img_name[0].endswith("0.png"):
+        mse_list['group_0'].append(mse_score.item())
+        ssim_list['group_0'].append(ssim_score.item())
+        psnr_list['group_0'].append(psnr_score.item())
+
+    if img_name[0].endswith("1+.png"):
+        mse_list['group_1'].append(mse_score.item())
+        ssim_list['group_1'].append(ssim_score.item())
+        psnr_list['group_1'].append(psnr_score.item())
+
+    if img_name[0].endswith("2+.png"):
+        mse_list['group_2'].append(mse_score.item())
+        ssim_list['group_2'].append(ssim_score.item())
+        psnr_list['group_2'].append(psnr_score.item())
+
+    if img_name[0].endswith("3+.png"):
+        mse_list['group_3'].append(mse_score.item())
+        ssim_list['group_3'].append(ssim_score.item())
+        psnr_list['group_3'].append(psnr_score.item())
+
+    mse_list['total'].append(mse_score.item())
+    ssim_list['total'].append(ssim_score.item())
+    psnr_list['total'].append(psnr_score.item())
+
+    return mse_list, ssim_list, psnr_list
 
 
 
+def init_epoch_eval_list():
+    mse_list ={}
+    ssim_list = {}
+    psnr_list = {}
 
- 
-                
-        
-            
-       
-        
+    mse_list['group_0'] = []
+    mse_list['group_1'] = []
+    mse_list['group_2'] = []
+    mse_list['group_3'] = []
+    mse_list['total'] = []
 
-        
+    ssim_list['group_0']= []
+    ssim_list['group_1']= []
+    ssim_list['group_2']= []
+    ssim_list['group_3']= []
+    ssim_list['total']= []
+
+    psnr_list['group_0']= []
+    psnr_list['group_1']= []
+    psnr_list['group_2']= []
+    psnr_list['group_3']= []
+    psnr_list['total']= []
+
+    return mse_list, ssim_list, psnr_list
+           
+def append_score_to_group_list(metric_score,eval_list, img_name):     
+    if img_name[0].endswith("0.png"):
+        eval_list['group_0'].append(metric_score)
+
+    if img_name[0].endswith("1+.png"):
+        eval_list['group_1'].append(metric_score)
+
+    if img_name[0].endswith("2+.png"):
+        eval_list['group_2'].append(metric_score)
+
+    if img_name[0].endswith("3+.png"):
+        eval_list['group_3'].append(metric_score)
+    
+    return eval_list
+
+def write_result_in_file(resultfile_path, result, result_name):
+    # write file
+    with open(resultfile_path, 'w') as f: 
+        f.write('-------------------------------------------------------' )
+        f.write('\n Full test results on %s dataset: \n' % (result_name)) 
+        f.write('\n trained for %s hours \n' % (result['train_time']/3600)) 
+        f.write('\n average sampling time is  %s seconds \n' % (result['prediction_time'])) 
+        f.write('-------------------------------------------------------\n' )
+        for key_group,value_1 in result.items():
+            if key_group ==  'prediction_time' or key_group == 'train_time':
+                continue
+            f.write('----------------------------------------------' )
+            f.write('\n %s \n' % (key_group))
+            for key, value in result[key_group].items(): 
+                write_value = round(value,4)
+                f.write('%s :  %s\n' % (key,write_value ))
+            f.write('----------------------------------------------' ) 
+            f.write('\n \n \n' ) 
+
+        # close file
+        f.close()
+
+

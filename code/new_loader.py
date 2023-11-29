@@ -5,7 +5,8 @@ import random
 from PIL import Image
 import torchvision.transforms as transforms
 import numpy as np
-import torch.nn as nn
+import torchvision.transforms as T
+
 # -------------------------------------------------------------------------------------------------------------------------
 # Loader
 # -------------------------------------------------------------------------------------------------------------------------
@@ -18,11 +19,12 @@ import torch.nn as nn
 
 
 class stain_transfer_dataset(Dataset):
-    def __init__(self,img_patch, set,args):
+    def __init__(self, img_patch, set, args):
         self.args = args
-        if set == 'train':
+        if set == 'train' or set == 'val':
             self.HE_img_dir = os.path.join(args.train_data,'HE')
             self.IHC_img_dir = os.path.join(args.train_data,'IHC')
+
         if set == 'test':
             self.HE_img_dir = os.path.join(args.test_data,'HE')
             self.IHC_img_dir = os.path.join(args.test_data,'IHC')
@@ -32,7 +34,8 @@ class stain_transfer_dataset(Dataset):
         self.img_patch = img_patch
 
         # init preprossing
-        self.preprocess_img = init_img_preproces(args)
+        self.preprocess_img = init_img_preproces(args,set)
+        self.transform_resize = T.Resize((256,256))
 
     def __len__(self):
         lst = os.listdir(self.HE_img_dir)
@@ -54,13 +57,16 @@ class stain_transfer_dataset(Dataset):
         torch.manual_seed(seed)
         IHC_tensor = self.preprocess_img(IHC_img)
 
-
-        HE_patches = HE_tensor.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
-        IHC_patches = IHC_tensor.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
+        if self.args.img_resize:
+            HE_out = self.transform_resize(HE_tensor)
+            IHC_out = self.transform_resize(IHC_tensor)
+        else:
+            HE_patches = HE_tensor.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
+            IHC_patches = IHC_tensor.unfold(1, self.img_size, self.img_size).unfold(2, self.img_size, self.img_size)
 
         # reshape the images 
-        HE_out = reshape_img(HE_patches, self.img_size, self.img_patch)
-        IHC_out = reshape_img(IHC_patches, self.img_size, self.img_patch)
+            HE_out = reshape_img(HE_patches, self.img_size, self.img_patch)
+            IHC_out = reshape_img(IHC_patches, self.img_size, self.img_patch)
 
         HE_out = HE_out.to(self.args.device)
         IHC_out = IHC_out.to(self.args.device)
@@ -86,27 +92,27 @@ def reshape_img(img, img_size, img_patch):
 
 
 
-def init_img_preproces(args):
+def init_img_preproces(args,set):
     transform_list = []
+    if set == 'train':
+        # check the preprocess list and add the different transforms 
+        if "normalise" in args.img_transforms and not args.model=='Diffusion':
+            
+            mean =  [0.485, 0.456, 0.406] 
+            std = [0.229, 0.224, 0.225]
+            transform_list.append(transforms.Normalize(mean, std))
 
-    # check the preprocess list and add the different transforms 
-    if "normalise" in args.img_transforms and not args.model=='Diffusion':
-        
-        mean =  [0.485, 0.456, 0.406] 
-        std = [0.229, 0.224, 0.225]
-        transform_list.append(transforms.Normalize(mean, std))
+        if "colorjitter" in args.img_transforms:
+            #transform_list.append(transforms.ColorJitter(brightness=(0.8,1.2), contrast=(1,2), saturation=(0.8,1.2), hue=(-0.1,0.1)))
+            transform_list.append(transforms.ColorJitter(brightness=(0.8,1.2), contrast=(1,2), saturation=(0.8,1.2)))
+        if "grayscale" in args.img_transforms:
+            transform_list.append(transforms.Grayscale(3))
 
-    if "colorjitter" in args.img_transforms:
-        transform_list.append(transforms.ColorJitter(contrast = (1,3)))
+        if "horizontal_flip"in args.img_transforms:
+            transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
 
-    if "grayscale" in args.img_transforms:
-         transform_list.append(transforms.Grayscale(3))
-
-    if "horizontal_flip"in args.img_transforms:
-        transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
-
-    if "vertical_flip"in args.img_transforms:
-        transform_list.append(transforms.RandomVerticalFlip(p=0.5))
+        if "vertical_flip"in args.img_transforms:
+            transform_list.append(transforms.RandomVerticalFlip(p=0.5))
 
     if args.diff_model:
         transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
