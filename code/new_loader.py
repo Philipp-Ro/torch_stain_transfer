@@ -114,7 +114,7 @@ def init_img_preproces(args,set):
         if "vertical_flip"in args.img_transforms:
             transform_list.append(transforms.RandomVerticalFlip(p=0.5))
 
-    if args.diff_model:
+    if args.model == 'Diffusion':
         transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
 
     transform_list.append(transforms.ToTensor())

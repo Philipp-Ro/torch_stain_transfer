@@ -7,9 +7,10 @@ from architectures.ViT_model import ViT_Generator
 from architectures.SwinTransformer_model import SwinTransformer
 from architectures.Unet_diff import UNet
 from architectures.Resnet_gen import ResnetGenerator
-import numpy as np
-import new_loader
-from torch.utils.data import DataLoader
+import os
+from pathlib import Path
+import pickle
+
 # denormalize
 def denomalise(mean,std,img):
     
@@ -146,9 +147,19 @@ def load_model(args):
                                 relative_pos_embedding=True
                                 )
         
-    if args.model == "diff_U_Net":
+    if args.model == 'Diffusion':
         model = UNet()
-        model_name = "diff_U_Net"
+        if args.type =="S":
+            args.diff_noise_steps = 500
+            model_name = "diffusion_model/diff_U_Net_S"
+
+        if args.type =="M":
+            args.diff_noise_steps = 1000
+            model_name = "diffusion_model/diff_U_Net_M"
+
+        if args.type =="L":
+            args.diff_noise_steps = 2000
+            model_name = "diffusion_model/diff_U_Net_L"
 
     if args.model == "Resnet":
         if args.type =="S":
@@ -177,24 +188,27 @@ def load_model(args):
     if args.hist_loss:
         model_name = model_name + '_hist'
 
-    # add Pix2Pix framwework to modelname
-    if args.gan_framework:
-        print('gan used')
-        model_name = 'Pix2Pix/' + model_name
-
-    if args.diff_model:
-        if args.type =="S":
-            args.diff_noise_steps = 500
-        if args.type =="M":
-            args.diff_noise_steps = 1000
-        if args.type =="L":
-            args.diff_noise_steps = 2000
-        
-        print('diffusionn model')
-        model_name = 'diffusion_model/diff_1000_steps' 
-
 
     return model , model_name
+
+def load_model_weights(model, model_name):
+    result_dir = os.path.join(Path.cwd(),"masterthesis_results")
+    train_path = os.path.join(result_dir,model_name)
+
+     # check if same architecture has already been trained 
+    if os.path.isdir(train_path):
+        # load existing model 
+        best_model_weights = os.path.join(train_path,'final_weights_gen.pth')
+        model.load_state_dict(torch.load(best_model_weights))
+        print(' ---------------------------------------------- ')
+        print('pretrained ' +model_name+'  weights loaded')
+    else:
+        print(' ---------------------------------------------- ')
+        print('no pretrained model found')
+
+    return model
+
+
 
 def init_eval():
         eval = {}
@@ -232,34 +246,6 @@ def init_eval():
         eval['train_time'] = 0
 
         return eval
-
-def store_single_img_eval(mse_score, ssim_score, psnr_score, img_name, mse_list, ssim_list, psnr_list):
-    if img_name[0].endswith("0.png"):
-        mse_list['group_0'].append(mse_score.item())
-        ssim_list['group_0'].append(ssim_score.item())
-        psnr_list['group_0'].append(psnr_score.item())
-
-    if img_name[0].endswith("1+.png"):
-        mse_list['group_1'].append(mse_score.item())
-        ssim_list['group_1'].append(ssim_score.item())
-        psnr_list['group_1'].append(psnr_score.item())
-
-    if img_name[0].endswith("2+.png"):
-        mse_list['group_2'].append(mse_score.item())
-        ssim_list['group_2'].append(ssim_score.item())
-        psnr_list['group_2'].append(psnr_score.item())
-
-    if img_name[0].endswith("3+.png"):
-        mse_list['group_3'].append(mse_score.item())
-        ssim_list['group_3'].append(ssim_score.item())
-        psnr_list['group_3'].append(psnr_score.item())
-
-    mse_list['total'].append(mse_score.item())
-    ssim_list['total'].append(ssim_score.item())
-    psnr_list['total'].append(psnr_score.item())
-
-    return mse_list, ssim_list, psnr_list
-
 
 
 def init_epoch_eval_list():
@@ -324,4 +310,92 @@ def write_result_in_file(resultfile_path, result, result_name):
         # close file
         f.close()
 
+def get_IHC_score(img_name):
+    if img_name[0].endswith("0.png"):
+        score = torch.tensor(0)
 
+    if img_name[0].endswith("1+.png"):
+        score = torch.tensor(1)
+
+    if img_name[0].endswith("2+.png"):
+        score = torch.tensor(2)
+
+    if img_name[0].endswith("3+.png"):
+        score =torch.tensor(3)
+
+    return score
+
+
+def set_paths(args, model_name):
+    result_dir = os.path.join(Path.cwd(),"masterthesis_results")
+    if not os.path.isdir(result_dir):
+        os.mkdir(result_dir)
+    # add Pix2Pix framwework to modelname
+    if args.gan_framework:
+        model_dir = os.path.join(result_dir,"Pix2Pix")
+
+        if not os.path.isdir(model_dir):
+            os.mkdir(model_dir)
+
+        model_name = 'Pix2Pix/' + model_name
+        print('GAN_FRAMEWORK')
+
+    if args.score_gan:
+        model_dir = os.path.join(result_dir,"score_gan")
+
+        if not os.path.isdir(model_dir):
+            os.mkdir(model_dir)
+        
+        model_name = 'score_gan/' + model_name 
+        print('SCORE_GAN_FRAMEWORK')
+
+    if args.model == "U_Net":
+        model_architecture = "U-Net"
+    if args.model == "ViT":
+        model_architecture = "ViT"
+    if args.model == "Swin":
+        model_architecture = "Swin_T"
+    if args.model == "Diffusion":
+        model_architecture = "diffusion_model"
+    
+    full_model_dir = os.path.join(model_dir,model_architecture)
+    if not os.path.isdir(full_model_dir):
+            os.mkdir(full_model_dir)
+
+    args.train_path = os.path.join(result_dir,model_name)
+    args.train_eval_path = os.path.join(args.train_path,'train_plot_eval')
+    args.test_eval_path = os.path.join(args.train_path,'test_plot_eval')
+    args.c_path = os.path.join(args.train_path,"checkpoints")
+    args.tp_path = os.path.join(args.train_path,'train_plots')
+    
+
+    if os.path.isdir(args.train_path):
+        train_eval_path = os.path.join(args.train_path,'train_plot_eval')
+        with open(train_eval_path, "rb") as fp:   
+                train_plot_eval = pickle.load(fp)
+
+        test_eval_path = os.path.join(args.train_path,'test_plot_eval')
+        # load previous val_eval
+        with open(test_eval_path, "rb") as fp:   
+                test_plot_eval = pickle.load(fp)
+
+    else:
+        os.mkdir(args.train_path)
+        os.mkdir(args.c_path)
+        os.mkdir(args.tp_path)
+
+        train_plot_eval =  {}
+        train_plot_eval['MSE'] = []
+        train_plot_eval['SSIM'] = []
+        train_plot_eval['PSNR'] = []
+        train_plot_eval['x'] = []
+
+        test_plot_eval =  {}
+        test_plot_eval['MSE'] = []
+        test_plot_eval['SSIM'] = []
+        test_plot_eval['PSNR'] = []
+        test_plot_eval['x'] = []
+
+    return args, train_plot_eval, test_plot_eval
+
+        

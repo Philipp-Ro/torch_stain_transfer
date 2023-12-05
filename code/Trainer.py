@@ -12,7 +12,7 @@ from torchmetrics import PeakSignalNoiseRatio
 from pathlib import Path
 import new_loader
 from torch.utils.data import DataLoader
-
+from torchvision.models import resnet50, ResNet50_Weights 
 import utils
 import plot_utils
 import numpy as np 
@@ -22,7 +22,7 @@ import pickle
 
 #class train_loop(torch.nn.Module):
 class train_loop:
-    def __init__(self, args, model, model_name):
+    def __init__(self, args, model, model_name,train_plot_eval, test_plot_eval):
         super(train_loop, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
         # Initialize Trainer
@@ -33,69 +33,35 @@ class train_loop:
         self.gen = model.to(args.device)
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=args.lr, betas=(args.beta1, args.beta2))
         self.g_scaler = torch.cuda.amp.GradScaler()
+
         if self.args.gan_framework :
             self.disc = Discriminator(in_channels=args.in_channels,features=32).to(args.device)
             self.opt_disc = optim.Adam(self.disc.parameters(), lr=args.lr, betas=(args.beta1, args.beta2))
             self.d_scaler = torch.cuda.amp.GradScaler()
         
-        if self.args.diff_model:
+        if self.args.score_gan:
+            self.disc  = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+            self.disc.fc = torch.nn.Linear(self.disc.fc.in_features, 4)
+            torch.nn.init.xavier_uniform_(self.disc.fc.weight)
+            self.disc =  self.disc.to(args.device) 
+
+            best_model_weights = os.path.join(Path.cwd(),'classifier_weights_IHC_256_50.pth')
+            self.disc.load_state_dict(torch.load(best_model_weights))
+
+        if args.model == 'Diffusion':
             self.diffusion = Diffusion(noise_steps=args.diff_noise_steps,img_size=args.img_size,device=args.device)  
 
         # Init LOSS
         self.BCE = nn.BCEWithLogitsLoss().to(args.device)
         self.MSE = nn.MSELoss().to(args.device)
+        self.CE_LOSS = torch.nn.CrossEntropyLoss()
         self.L1_LOSS = nn.L1Loss().to(args.device)
         self.SSIM = StructuralSimilarityIndexMeasure(data_range=1.0).to(args.device)
         self.PSNR = PeakSignalNoiseRatio().to(args.device)
 
-
-        # Init paths 
-        result_dir = os.path.join(Path.cwd(),"masterthesis_results")
-        self.train_path = os.path.join(result_dir,model_name)
-        self.c_path = os.path.join(self.train_path,"checkpoints")
-        self.train_eval_path = os.path.join(self.train_path,'train_plot_eval')
-        self.test_eval_path = os.path.join(self.train_path,'test_plot_eval')
-        self.tp_path = os.path.join(self.train_path,'train_plots')
-
-        self.count = 0
-
-
-        # check if same architecture has already been trained 
-        if os.path.isdir(self.train_path):
-            # load previous train_eval
-            with open(self.te_path, "rb") as fp:   
-                self.train_plot_eval = pickle.load(fp)
-            self.count =  len(self.train_eval['MSE'])
-
-            # load previous val_eval
-            with open(self.ve_path, "rb") as fp:   
-                self.val_plot_eval = pickle.load(fp)
-
-            # load existing model 
-            best_model_weights = os.path.join(self.train_path,'final_weights_gen.pth')
-            self.gen.load_state_dict(torch.load(best_model_weights))
-            print(' ---------------------------------------------- ')
-            print('weights loaded')
-
-        else:
-            # make new path
-            os.mkdir(self.train_path)
-            os.mkdir(self.c_path)
-            os.mkdir(self.tp_path)
-
-            self.train_plot_eval =  {}
-            self.train_plot_eval['MSE'] = []
-            self.train_plot_eval['SSIM'] = []
-            self.train_plot_eval['PSNR'] = []
-            self.train_plot_eval['x'] = []
-
-            self.test_plot_eval =  {}
-            self.test_plot_eval['MSE'] = []
-            self.test_plot_eval['SSIM'] = []
-            self.test_plot_eval['PSNR'] = []
-            self.test_plot_eval['x'] = []
-
-
+        self.test_plot_eval = test_plot_eval
+        self.train_plot_eval = train_plot_eval
+        self.count =  len(train_plot_eval ['MSE'])
 
 
     def fit(self):
@@ -134,7 +100,7 @@ class train_loop:
             for i, (real_HE, real_IHC,img_name) in enumerate(train_data_loader) :
 
                 # model prediction:
-                if self.args.diff_model:
+                if self.args.model == 'Diffusion':
                     # diffusion model
                     t = self.diffusion.sample_timesteps(real_IHC.shape[0]).to(self.args.device)
                     x_t, noise = self.diffusion.noise_img(real_IHC, t, real_HE)
@@ -158,7 +124,7 @@ class train_loop:
                     fake_IHC = self.gen(real_HE)
 
                     # model loss:
-                    total_loss = self.get_loss(real_img=real_IHC,fake_img=fake_IHC)
+                    total_loss = self.get_loss(real_img=real_IHC,fake_img=fake_IHC,img_name=img_name)
 
                     # train eval per img:
                     mse_score = self.MSE(real_IHC,fake_IHC)
@@ -195,6 +161,7 @@ class train_loop:
                         self.d_scaler.scale(loss_disc).backward()
                         self.d_scaler.step(self.opt_disc)
                         self.d_scaler.update()
+
                 
 
                 # show progress:
@@ -215,12 +182,12 @@ class train_loop:
                 plot_utils.plot_img_set( real_HE = real_HE,
                                     fake_IHC = fake_IHC,
                                     real_IHC = real_IHC,
-                                    save_path = self.tp_path,
+                                    save_path = self.args.tp_path,
                                     img_name = img_name,
                                     epoch = epoch + self.count )
         
                 checkpoint_name = 'gen_G_weights_'+str(epoch+self.count)+'.pth'
-                torch.save(self.gen.state_dict(),os.path.join(self.c_path,checkpoint_name ) )
+                torch.save(self.gen.state_dict(),os.path.join(self.args.c_path,checkpoint_name ) )
 
                 if self.args.model != "Diffusion":
                     print('- - - - - - - - - - - - - - - - - - - - - - -  ')
@@ -246,17 +213,17 @@ class train_loop:
                 gen_out = self.gen
 
         # save train_eval
-        with open(self.train_eval_path, "wb") as fp:   
+        with open(os.path.join(self.args.train_path,'train_plot_eval'), "wb") as fp:   
             pickle.dump(self.train_plot_eval, fp)
 
-        with open(self.test_eval_path, "wb") as fp:   
+        with open(os.path.join(self.args.train_path,'test_plot_eval'), "wb") as fp:   
             pickle.dump(self.test_plot_eval, fp)
 
         # save best model 
-        final_model_path = os.path.join(self.train_path,'final_weights_gen.pth')
+        final_model_path = os.path.join(self.args.train_path,'final_weights_gen.pth')
         torch.save(gen_out.state_dict(), final_model_path)
 
-        return gen_out
+        return gen_out, self.train_plot_eval, self.test_plot_eval
     
     def get_test_scores(self, model, result):
         
@@ -299,7 +266,7 @@ class train_loop:
         return result
 
 
-    def get_loss(self,real_img, fake_img):
+    def get_loss(self,real_img, fake_img,img_name):
         # TO DO : SET LAMBDAS
         total_loss = 0
         if self.args.gan_framework:
@@ -308,9 +275,24 @@ class train_loop:
                 D_input_fake =torch.cat((real_img,fake_img), 1)
                 D_fake = self.disc(D_input_fake.detach())
                 G_fake_loss = self.BCE(D_fake, torch.ones_like(D_fake))
-                L1 = self.L1_LOSS(real_img, fake_img) *1
-                gen_loss = G_fake_loss + L1
+                L1_loss = self.L1_LOSS(real_img, fake_img) 
+                gen_loss = G_fake_loss + L1_loss
                 total_loss = total_loss+ gen_loss
+
+        elif self.args.score_gan:
+                    score = utils.get_IHC_score(img_name)
+
+                    gt = torch.nn.functional.one_hot(score, num_classes=4)
+                    gt = gt.type(torch.DoubleTensor) 
+                    gt = gt.to(self.args.device)
+
+                    outputs = self.disc(fake_img)
+                    outputs = torch.squeeze(outputs)
+                    GAN_loss = self.CE_LOSS(outputs, gt)  
+                    L1_loss = self.L1_LOSS(real_img, fake_img) 
+
+                    gen_loss = GAN_loss + L1_loss
+                    total_loss = total_loss+ gen_loss
 
         else:
             gen_loss = self.MSE(real_img, fake_img)
