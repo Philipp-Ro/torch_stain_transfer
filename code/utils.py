@@ -54,36 +54,51 @@ def gausian_blurr_loss(MSE_LOSS,real_img, fake_img):
     G_L2 = MSE_LOSS(octave2_layer1_fake, octave2_layer1_real) 
     return G_L2,octave2_layer1_fake,octave2_layer1_real
 
-def load_model(args):
+def build_model(args):
     if args.model == "None":
         model = "None"
-        model_name = "None"
+        model_arch = "None"
+        model_specs = "None"
+
 
     if args.model == "U_Net":
         attention = False
         if "S" in args.type:
             features= 16
             steps = 3
-            model_name = "U-Net/3step_16f"
+            model_arch ='U_Net/'
+            model_specs='3step_16f'
             if "+att" in args.type:
-                model_name = model_name+'+att'
+                model_specs =model_specs+'+att'
                 attention = True
 
         if "M" in args.type:
             features= 32
             steps = 4
-            model_name = "U-Net/4step_32f"
+            model_arch ='U_Net/'
+            model_specs='4step_32f'
+            
             if "+att" in args.type:
-                model_name = model_name+'+att'
+                model_specs =model_specs+'+att'
                 attention = True
 
         if "L" in args.type:
             features= 64
             steps = 5
-            model_name = "U-Net/5step_64f"
+            model_arch ='U_Net/'
+            model_specs='5step_64f'
             if "+att" in args.type:
-                model_name = model_name+'+att'
+                model_specs =model_specs+'+att'
                 attention = True     
+
+        if "X" in args.type:
+            features= 128
+            steps = 3
+            model_arch ='U_Net/'
+            model_specs='3step_128f'
+            if "+att" in args.type:
+                model_specs =model_specs+'+att'
+                attention = True  
 
         model = U_net_Generator( in_channels=args.in_channels , out_channels=3, features=features, steps=steps, attention=attention)
 
@@ -91,17 +106,20 @@ def load_model(args):
         if args.type =="S":
             num_blocks= 1
             num_heads = 2
-            model_name = "ViT/1_block_2head"
+            model_arch ='ViT/'
+            model_specs='1_block_2head'
           
         if args.type =="M":
             num_blocks =2
             num_heads = 4
-            model_name = "ViT/2_block_4head"
+            model_arch ='ViT/'
+            model_specs='2_block_4head'
 
         if args.type =="L":
             num_blocks =3
             num_heads = 8
-            model_name = "ViT/3_block_8head"
+            model_arch ='ViT/'
+            model_specs='3_block_8head'
         
         if args.img_resize:
             img_size_in = 256
@@ -122,19 +140,8 @@ def load_model(args):
             hidden_dim = 32
             layers = [2,2]
             heads =[3, 6]
-            model_name = "Swin_T/2_stages_32_hidden_dim"
-
-        if args.type =="M":
-            layers = [2,2,6]
-            hidden_dim = 64
-            heads =[3, 6,12]
-            model_name = "Swin_T/3_stages_64_hidden_dim"
-
-        if args.type =="L":
-            layers = [2,2,6,2]
-            hidden_dim = 96
-            heads =[3,6,12,24]
-            model_name = "Swin_T/4_stages_96_hidden_dim"
+            model_arch ='Swin_T/'
+            model_specs='2_stages_32_hidden_dim'
 
         model = SwinTransformer(    hidden_dim=hidden_dim, 
                                 layers=layers, 
@@ -151,54 +158,61 @@ def load_model(args):
         model = UNet()
         if args.type =="S":
             args.diff_noise_steps = 500
-            model_name = "diffusion_model/diff_U_Net_S"
+            model_arch ='diffusion_model/'
+            model_specs='diff_U_Net_S'
 
         if args.type =="M":
             args.diff_noise_steps = 1000
-            model_name = "diffusion_model/diff_U_Net_M"
-
-        if args.type =="L":
-            args.diff_noise_steps = 2000
-            model_name = "diffusion_model/diff_U_Net_L"
+            model_arch ='diffusion_model/'
+            model_specs='diff_U_Net_M'
 
     if args.model == "Resnet":
         if args.type =="S":
             hidden_dim = 32
             n_blocks =4
-            model_name = "Resnet/4_blocks_32_hidden_dim"
+            model_arch ='Resnet/'
+            model_specs='4_blocks_32_hidden_dim'
 
         if args.type =="M":
             hidden_dim = 64
             n_blocks = 6
-            model_name =  "Resnet/6_blocks_64_hidden_dim"
+            model_arch ='Resnet/'
+            model_specs='6_blocks_64_hidden_dim'
 
         if args.type =="L":
             hidden_dim = 96
             n_blocks = 9
-            model_name =  "Resnet/9_blocks_96_hidden_dim"
+            model_arch ="Resnet/"
+            model_specs="9_blocks_96_hidden_dim"
 
         model = ResnetGenerator(input_nc=args.in_channels, output_nc=3, ngf=hidden_dim , n_blocks=n_blocks)
     # add aditional Loss to modelname
     if args.gaus_loss:
-        model_name = model_name + '_gaus'
+        model_specs = model_specs + '_gaus'
 
     if args.ssim_loss:
-        model_name = model_name + '_ssim'
+        model_specs = model_specs+ '_ssim'
 
     if args.hist_loss:
-        model_name = model_name + '_hist'
+        model_specs = model_specs + '_hist'
 
 
-    return model , model_name
+    if args.gan_framework == 'pix2pix':
+        model_framework = 'Pix2Pix/'
 
-def load_model_weights(model, model_name):
-    result_dir = os.path.join(Path.cwd(),"masterthesis_results")
-    train_path = os.path.join(result_dir,model_name)
+    if args.gan_framework == 'score_gan':
+        model_framework = 'score_gan/'
 
-     # check if same architecture has already been trained 
-    if os.path.isdir(train_path):
+    if args.gan_framework == 'None':
+        model_framework = ''
+
+
+    return model ,model_framework, model_arch, model_specs
+
+def load_model_weights(args, model, model_name):
+    if os.path.isdir(args.train_path):
         # load existing model 
-        best_model_weights = os.path.join(train_path,'final_weights_gen.pth')
+        best_model_weights = os.path.join(args.train_path,'final_weights_gen.pth')
         model.load_state_dict(torch.load(best_model_weights))
         print(' ---------------------------------------------- ')
         print('pretrained ' +model_name+'  weights loaded')
@@ -207,6 +221,61 @@ def load_model_weights(model, model_name):
         print('no pretrained model found')
 
     return model
+
+def set_paths(args  ,model_framework, model_arch, model_specs):
+    result_dir = os.path.join(Path.cwd(),"masterthesis_results")
+    if not os.path.isdir(result_dir):
+        os.mkdir(result_dir)
+    # add gan_framwework to modelname
+    if args.gan_framework != 'None':
+        model_dir = os.path.join(result_dir,model_framework)
+        model_name = model_framework + model_arch + model_specs
+
+        if not os.path.isdir(model_dir):
+            os.mkdir(model_dir)
+    else : 
+        model_dir = result_dir
+        model_name =  model_arch + model_specs
+
+    full_model_dir = os.path.join(model_dir, model_arch)
+    if not os.path.isdir(full_model_dir):
+            os.mkdir(full_model_dir)
+
+    args.train_path = os.path.join(model_dir,(model_arch+model_specs))
+    args.train_eval_path = os.path.join(args.train_path,'train_plot_eval')
+    args.test_eval_path = os.path.join(args.train_path,'test_plot_eval')
+    args.c_path = os.path.join(args.train_path,"checkpoints")
+    args.tp_path = os.path.join(args.train_path,'train_plots')
+    
+
+    if os.path.isdir(args.train_path):
+        train_eval_path = os.path.join(args.train_path,'train_plot_eval')
+        with open(train_eval_path, "rb") as fp:   
+                train_plot_eval = pickle.load(fp)
+
+        test_eval_path = os.path.join(args.train_path,'test_plot_eval')
+        # load previous val_eval
+        with open(test_eval_path, "rb") as fp:   
+                test_plot_eval = pickle.load(fp)
+
+    else:
+        os.mkdir(args.train_path)
+        os.mkdir(args.c_path)
+        os.mkdir(args.tp_path)
+
+        train_plot_eval =  {}
+        train_plot_eval['MSE'] = []
+        train_plot_eval['SSIM'] = []
+        train_plot_eval['PSNR'] = []
+        train_plot_eval['x'] = []
+
+        test_plot_eval =  {}
+        test_plot_eval['MSE'] = []
+        test_plot_eval['SSIM'] = []
+        test_plot_eval['PSNR'] = []
+        test_plot_eval['x'] = []
+
+    return args, model_name, train_plot_eval, test_plot_eval
 
 
 
@@ -326,76 +395,6 @@ def get_IHC_score(img_name):
     return score
 
 
-def set_paths(args, model_name):
-    result_dir = os.path.join(Path.cwd(),"masterthesis_results")
-    if not os.path.isdir(result_dir):
-        os.mkdir(result_dir)
-    # add Pix2Pix framwework to modelname
-    if args.gan_framework:
-        model_dir = os.path.join(result_dir,"Pix2Pix")
 
-        if not os.path.isdir(model_dir):
-            os.mkdir(model_dir)
-
-        model_name = 'Pix2Pix/' + model_name
-        print('GAN_FRAMEWORK')
-
-    if args.score_gan:
-        model_dir = os.path.join(result_dir,"score_gan")
-
-        if not os.path.isdir(model_dir):
-            os.mkdir(model_dir)
-        
-        model_name = 'score_gan/' + model_name 
-        print('SCORE_GAN_FRAMEWORK')
-
-    if args.model == "U_Net":
-        model_architecture = "U-Net"
-    if args.model == "ViT":
-        model_architecture = "ViT"
-    if args.model == "Swin":
-        model_architecture = "Swin_T"
-    if args.model == "Diffusion":
-        model_architecture = "diffusion_model"
-    
-    full_model_dir = os.path.join(model_dir,model_architecture)
-    if not os.path.isdir(full_model_dir):
-            os.mkdir(full_model_dir)
-
-    args.train_path = os.path.join(result_dir,model_name)
-    args.train_eval_path = os.path.join(args.train_path,'train_plot_eval')
-    args.test_eval_path = os.path.join(args.train_path,'test_plot_eval')
-    args.c_path = os.path.join(args.train_path,"checkpoints")
-    args.tp_path = os.path.join(args.train_path,'train_plots')
-    
-
-    if os.path.isdir(args.train_path):
-        train_eval_path = os.path.join(args.train_path,'train_plot_eval')
-        with open(train_eval_path, "rb") as fp:   
-                train_plot_eval = pickle.load(fp)
-
-        test_eval_path = os.path.join(args.train_path,'test_plot_eval')
-        # load previous val_eval
-        with open(test_eval_path, "rb") as fp:   
-                test_plot_eval = pickle.load(fp)
-
-    else:
-        os.mkdir(args.train_path)
-        os.mkdir(args.c_path)
-        os.mkdir(args.tp_path)
-
-        train_plot_eval =  {}
-        train_plot_eval['MSE'] = []
-        train_plot_eval['SSIM'] = []
-        train_plot_eval['PSNR'] = []
-        train_plot_eval['x'] = []
-
-        test_plot_eval =  {}
-        test_plot_eval['MSE'] = []
-        test_plot_eval['SSIM'] = []
-        test_plot_eval['PSNR'] = []
-        test_plot_eval['x'] = []
-
-    return args, train_plot_eval, test_plot_eval
 
         

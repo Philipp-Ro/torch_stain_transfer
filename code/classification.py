@@ -34,7 +34,7 @@ class score_classifier:
         optimizer = torch.optim.Adam([{'params':params_1x}, {'params': self.classifier.fc.parameters(), 'lr': self.args.lr*10}], lr=self.args.lr, weight_decay=5e-4)
 
         print('---------------------------------------------- ')
-        print('START TRAINING')
+        print('START TRAINING CLASSIFIER')
 
         for epoch in range(50):
             print('---------------------------------------------- ')

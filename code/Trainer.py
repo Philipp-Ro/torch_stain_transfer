@@ -22,7 +22,7 @@ import pickle
 
 #class train_loop(torch.nn.Module):
 class train_loop:
-    def __init__(self, args, model, model_name,train_plot_eval, test_plot_eval):
+    def __init__(self, args, model, train_plot_eval, test_plot_eval):
         super(train_loop, self).__init__()               
         # -----------------------------------------------------------------------------------------------------------------
         # Initialize Trainer
@@ -34,12 +34,12 @@ class train_loop:
         self.opt_gen = optim.Adam(self.gen.parameters(), lr=args.lr, betas=(args.beta1, args.beta2))
         self.g_scaler = torch.cuda.amp.GradScaler()
 
-        if self.args.gan_framework :
+        if self.args.gan_framework == 'pix2pix':
             self.disc = Discriminator(in_channels=args.in_channels,features=32).to(args.device)
             self.opt_disc = optim.Adam(self.disc.parameters(), lr=args.lr, betas=(args.beta1, args.beta2))
             self.d_scaler = torch.cuda.amp.GradScaler()
         
-        if self.args.score_gan:
+        if self.args.gan_framework == 'pix2pix':
             self.disc  = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
             self.disc.fc = torch.nn.Linear(self.disc.fc.in_features, 4)
             torch.nn.init.xavier_uniform_(self.disc.fc.weight)
@@ -144,7 +144,7 @@ class train_loop:
                 self.g_scaler.update()
 
                 # discriminator update for gan models
-                if self.args.gan_framework:
+                if self.args.gan_framework == 'pix2pix':
                     with torch.cuda.amp.autocast():
                         D_input_fake =torch.cat((real_HE,fake_IHC), 1)
                         D_input_real =torch.cat((real_HE,real_IHC), 1)
@@ -269,7 +269,7 @@ class train_loop:
     def get_loss(self,real_img, fake_img,img_name):
         # TO DO : SET LAMBDAS
         total_loss = 0
-        if self.args.gan_framework:
+        if self.args.gan_framework == 'pix2pix':
             with torch.cuda.amp.autocast():
                 # output for disc on fake image
                 D_input_fake =torch.cat((real_img,fake_img), 1)
@@ -279,7 +279,7 @@ class train_loop:
                 gen_loss = G_fake_loss + L1_loss
                 total_loss = total_loss+ gen_loss
 
-        elif self.args.score_gan:
+        elif self.args.gan_framework == 'score_gan':
                     score = utils.get_IHC_score(img_name)
 
                     gt = torch.nn.functional.one_hot(score, num_classes=4)

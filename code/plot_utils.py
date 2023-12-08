@@ -16,21 +16,21 @@ def plot_trainresult(args, save_path, train_eval, test_eval):
     fig, axs = plt.subplots(3)
 
     axs[0].plot(train_eval['x'], train_eval['MSE'],label='train MSE')
-    if not args.diff_model:
+    if 'Diffusion' not in args.model:
         axs[0].plot(test_eval['x'], test_eval['MSE'],label='test MSE')
     axs[0].legend(loc="upper right",fontsize='xx-small')
     axs[0].set_xlabel(xlabel='epoch',loc='right',labelpad=2)
     axs[0].set_title('MSE',loc='left')
 
     axs[1].plot(train_eval['x'], train_eval['SSIM'],label='train SSIM')
-    if not args.diff_model:
+    if 'Diffusion' not in args.model:
         axs[1].plot(test_eval['x'], test_eval['SSIM'],label='test SSIM')
     axs[1].legend(loc="lower right",fontsize='xx-small')
     axs[1].set_xlabel(xlabel='epoch',loc='right',labelpad=2)
     axs[1].set_title('SSIM',loc='left')
 
     axs[2].plot(train_eval['x'], train_eval['PSNR'],label='train PSNR')
-    if not args.diff_model:
+    if'Diffusion' not in args.model:
         axs[2].plot(test_eval['x'], test_eval['PSNR'],label='test PSNR')
     axs[2].legend(loc="lower right",fontsize='xx-small')
     axs[2].set_xlabel(xlabel='epoch',loc='right',labelpad=2)
@@ -91,12 +91,11 @@ def get_imgs(args, img_names, model):
     test_data = new_loader.stain_transfer_dataset( img_patch=0, set='test',args = args) 
     test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
 
-    for i, (real_HE, real_IHC,img_name) in enumerate(test_data_loader) :
+    for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader) :
                  
-        real_HE = transform_resize(real_HE)
-        real_IHC = transform_resize(real_IHC)
- 
         if img_name[0] in img_names :
+            real_HE = transform_resize(real_HE)
+            real_IHC = transform_resize(real_IHC)
 
             if args.model == 'Diffusion':
                 fake_IHC = diffusion.sample(model , n=real_IHC.shape[0], y=real_HE)
@@ -106,7 +105,7 @@ def get_imgs(args, img_names, model):
 
                 real_HE_plot = real_HE.cpu().detach().numpy()
                 real_HE_plot = np.squeeze(real_HE_plot )
-                real_IHC_plot = np.transpose(real_IHC_plot, (1, 2, 0))
+                real_HE_plot = np.transpose(real_HE_plot, (1, 2, 0))
                 img_arr.append(real_HE_plot)
 
             elif args.model == 'target':
@@ -126,74 +125,117 @@ def get_imgs(args, img_names, model):
                 fake_IHC = np.transpose(fake_IHC, (1, 2, 0))
                 img_arr.append(fake_IHC)
 
-        return img_arr
+    return img_arr
     
-def get_imgs_for_all_models(args, model_dict, img_names):
-    img_arr = []
+def get_imgs_for_all_models(args, model_list, img_names):
+    
     model = []
     model_labels = []
+
     # get HE imgs
     args.model = 'source'
     img_arr_source = get_imgs(args, img_names, model)
-    img_arr = np.concatenate((img_arr, img_arr_source), axis=0)
+    img_arr =  img_arr_source
+    model_labels.append('HE\nInput')
     
 
     # get IHC imgs
     args.model = 'target'
     img_arr_target = get_imgs(args, img_names, model)
-    img_arr = np.concatenate((img_arr, img_arr_target), axis=0)
+    #img_arr = np.concatenate((img_arr, img_arr_target), axis=0)
+    #img_arr = np.concatenate((img_arr, img_arr_target), axis=1)
+    img_arr = np.vstack((img_arr, img_arr_target))
+    model_labels.append('IHC\nTarget')
 
-    # get images from all networks in model_dict
-    for architecture_name in model_dict:
-        args.model = architecture_name
-  
-        for version in model_dict[architecture_name]:
-            args.type = version
-            model, model_name = utils.load_model(args)
-            model = utils.load_model_weights(model, model_name)
-            model = model.to(args.device)
+    result_dir = os.path.join(Path.cwd(),"masterthesis_results")
+    # get images from all networks in model_list
+    for model_name in model_list:
+        model_dir = os.path.join(result_dir,model_name)
+        if 'U-Net' in model_name:
+            args.model = 'U_Net'
+            if '3step' in model_name:
+                args.type = 'S'
+            if '4step' in model_name:
+                args.type = 'M'       
+            if '5step' in model_name:
+                args.type = 'L'  
 
-            img_arr_model = get_imgs(args, img_names, model)
-            img_arr = np.concatenate((img_arr, img_arr_model), axis=0)
+        if 'ViT' in model_name:
+            args.model = 'ViT'
+            if '1_block' in model_name:
+                args.type = 'S'
+            if '2_block' in model_name:
+                args.type = 'M'
 
-            model_label_name = args.model +'\n'+args.type
-            model_labels.append(model_label_name)
+        if 'Swin_T' in model_name:
+            args.model = 'U_Net'
+            args.type = 'S'
+
+        if 'Diffusion' in model_name:
+            args.model = 'Diffusion'
+            args.type = 'M'
+
+        model_label_name = args.model +'\n'+args.type
+        if 'score_gan' in model_name:
+            model_label_name = 'score_gan\n'+model_label_name
+
+        if 'Pix2Pix' in model_name:
+            model_label_name = 'pix2pix\n'+model_label_name
+
+        model_labels.append(model_label_name)
+
+        model, model_name = utils.build_model(args)
+        args.train_path = model_dir
+        trained_model = utils.load_model_weights(args, model, model_name)
+        trained_model = model.to(args.device)
+
+        img_arr_model = get_imgs(args, img_names, trained_model)
+        #img_arr = np.concatenate((img_arr, img_arr_model), axis=1)
+        img_arr = np.vstack((img_arr,  img_arr_model))
 
     return img_arr, model_labels
 
-def save_plot_for_models(args, model_dict, IHC_score):
-
-    img_arr, model_labels = get_imgs_for_all_models(args, model_dict, img_names)
-
-    num_rows = len(model_labels) +2
-    num_cols = len(img_names)
+def save_plot_for_models(args, model_list, IHC_score):
 
     if IHC_score == '0':
-        img_names = []
+        img_names = ['00292_train_0.png','00549_train_0.png','01434_train_0.png','01810_train_0.png']
         plot_name = 'all_models_IHC_score_0'
         column_labels = ['img 1\nIHC '+IHC_score,'img 2\nIHC '+IHC_score,'img 3\nIHC '+IHC_score,'img 4\nIHC '+IHC_score]
 
     if IHC_score == '1+':
-        img_names = []
+        img_names = ['02042_train_1+.png', '01995_train_1+.png','02867_train_1+.png','03759_train_1+.png']
         plot_name = 'all_models_IHC_score_1+'
         column_labels = ['img 1\nIHC '+IHC_score,'img 2\nIHC '+IHC_score,'img 3\nIHC '+IHC_score,'img 4\nIHC '+IHC_score]
 
     if IHC_score == '2+':
-        img_names = []
+        img_names = ['01879_train_2+.png', '02555_train_2+.png','03078_train_2+.png','03877_train_2+.png']
         plot_name = 'all_models_IHC_score_2+'
         column_labels = ['img 1\nIHC '+IHC_score,'img 2\nIHC '+IHC_score,'img 3\nIHC '+IHC_score,'img 4\nIHC '+IHC_score]
 
     if IHC_score == '3+':
-        img_names = []
+        img_names = ['02995_train_3+.png', '02171_train_3+.png', '01671_train_3+.png', '00788_train_3+.png']
         plot_name = 'all_models_IHC_score_3+'
         column_labels = ['img 1\nIHC '+IHC_score,'img 2\nIHC '+IHC_score,'img 3\nIHC '+IHC_score,'img 4\nIHC '+IHC_score]
 
+
     if IHC_score == 'all':
         img_names = ['01269_train_0.png','00864_train_1+.png','00265_train_2+.png','00156_train_3+.png']
-        plot_name = 'all_IHC_score_model_'+ model_labels[0]
-        column_labels = ['img\ngroup 3+','img\ngroup 2+','img\ngroup 1+','img\ngroup 0']
-        save_path = os.path.join(args.train_path,"qulitative eval")
+        plot_name = 'all_IHC_score_model_'+ args.model+'_'+args.type
+        column_labels = ['img\nscore 3+','img\nscore 2+','img\nscore 1+','img\nscore 0']
+        
+    if len(model_list)==1:
+        save_path = os.path.join(args.train_path,"qualitative eval")
+    else:
+        save_path = os.path.join(Path.cwd(),'all_net_plots')
 
+    img_arr, model_labels = get_imgs_for_all_models(args, model_list, img_names)
+    
+    num_rows = len(model_labels) 
+    num_cols = len(img_names)
+
+    print(model_labels)
+
+    #row_labels = model_labels
     # Set the size of each subplot
     subplot_size = 3  # Adjust this value to control the size of each subplot
     fig_width = subplot_size * num_cols+ 1.0 
@@ -206,206 +248,56 @@ def save_plot_for_models(args, model_dict, IHC_score):
             
 
     # Create subplots and labels
-        for j in range(num_cols):
-            for i in range(num_rows):
-                index = j * num_rows + i
-                if index < len(img_arr):
-                    axes[i, j].imshow(img_arr[index])
-                    axes[i, j].get_xaxis().set_visible(False)
-                    axes[i, j].get_yaxis().set_visible(False)
-                        
-
-        # Labels for columns at the very top
-        for j, label in enumerate(column_labels):
-            ax = axes[0, j]
-            ax.set_title(label, fontsize=18, pad=10)  
-
-        for i, label in enumerate(row_labels):
-            ax = axes[i, 0]
-            plt.gcf().text(0.065, 0.2+(i*0.25), label, fontsize=18)
-
-
-        plt.subplots_adjust(wspace=0, hspace=0)
-        plot_name =plot_name+ '_pred_examples.png'
-        plt.savefig(os.path.join(self.save_path,plot_name), bbox_inches='tight')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# get all images for publisching plot 
-def get_publish_plot_img(args,images):
-
-    plot_names =images["img_name"]
-
-    plot_img_IHC = []
-    plot_img_HE = []
-
-    test_data = new_loader.stain_transfer_dataset( img_patch=0, set='test',args = args) 
-    test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
-    transform_resize = T.Resize((256,256))
-
-
-    for i, (real_HE, real_IHC, img_name) in enumerate(test_data_loader):
-        
-        if img_name[0] in plot_names:
-            real_HE = transform_resize(real_HE)
-            real_IHC = transform_resize(real_IHC)
-
-            plot_img_IHC.append(real_IHC)
-            plot_img_HE.append(real_HE)
-
-
-    return plot_img_IHC, plot_img_HE
-
-# predict all images with models for publishing plot
-def predict_all_img(args,images,model_dict,gan_flag):
-    plot_img_IHC, plot_img_HE = get_publish_plot_img(args=args, images=images)
-    model_num =3
-    img_arr = []
-    num_samples = len(plot_img_IHC)
-    print(len(plot_img_IHC))
-
-    # cycle through images
-    for idx in range(len(plot_img_IHC)):
-        real_HE = plot_img_HE[idx]
-        real_IHC = plot_img_IHC[idx]
-
-        real_HE_plot = real_HE.cpu().detach().numpy()
-        real_IHC_plot = real_IHC.cpu().detach().numpy()
-
-        real_HE_plot = np.squeeze(real_HE_plot )
-        real_IHC_plot = np.squeeze(real_IHC_plot )
-
-        real_IHC_plot = np.transpose(real_IHC_plot, (1, 2, 0))
-        real_HE_plot  = np.transpose(real_HE_plot , (1, 2, 0))
-
-        img_arr.append(real_HE_plot)
-        
-        img_arr.append(real_IHC_plot)
-        
-        num_models=0
-        #cycle through models 
-        for architecture_name in model_dict:
-  
-            for version in model_dict[architecture_name]:
-
-                args.model = architecture_name
-                args.type = version
-                
-                model, model_name = utils.load_model(args)
-                model = model.to(args.device)
-
-                model_dir = os.path.join(Path.cwd(),"masterthesis_results")
-                if gan_flag == True:
-                    model_dir = os.path.join(model_dir,"Pix2Pix")
-
-                train_path = os.path.join(model_dir,model_name)
-                if os.path.isdir(train_path):
-                    print(architecture_name)
-                    best_model_weights = os.path.join(train_path,'final_weights_gen.pth')
-                    model.load_state_dict(torch.load(best_model_weights))
-                    model = model.to(args.device)
-                else:
-                    print('MODEL NOT TRAINED CHECK MODEL DICT')
-
-                
-                if model_name[0].__contains__('diff'):
-                        
-                    diffusion = Diffusion(noise_steps=args.diff_noise_steps,img_size=args.img_size,device=args.device) 
-                    fake_IHC = diffusion.sample(model , n=real_IHC.shape[0],y=real_HE)
-                else:
-                    fake_IHC = model(real_HE)
-
-                fake_IHC = fake_IHC.cpu().detach().numpy()
-                fake_IHC = np.squeeze(fake_IHC)
-                fake_IHC = np.transpose(fake_IHC, (1, 2, 0))
-                num_models = num_models+1
-                #fake_IHC = torch.from_numpy(fake_IHC)
-                img_arr.append(fake_IHC)
-                print('append predict')
-                #num_models = num_models+1
-
-    return img_arr, num_samples, num_models
-
-def get_publishing_plot(args,images,model_dict,gan_flag,save_path,plot_name):
-    img_arr, num_samples, num_models = predict_all_img(args, images, model_dict,gan_flag)
-    images = img_arr  
-
-    num_rows = num_samples  
-    num_cols = num_models+2
-
-    column_labels = ['HE \n Input','IHC \n Target']
-    row_labels = ['img\ngroup 0','img\ngroup 1+','img\ngroup 2+','img\ngroup 3+']
-    for architecture_name in model_dict:
-            for version in model_dict[architecture_name]:
-                column_labels.append(architecture_name+ '\n'+version)
-
-
-    # Set the size of each subplot
-    subplot_size = 3  # Adjust this value to control the size of each subplot
-    fig_width = subplot_size * num_cols
-    fig_height = subplot_size * num_rows + 1.0 
-    # Create a figure with a size that accommodates the subplots and labels
-    fig, axes = plt.subplots(num_rows, num_cols, figsize=(fig_width, fig_height))
-
-    for ax in axes.ravel():
-        ax.set_aspect('equal')
-    
-
-    # Create subplots and labels
     for i in range(num_rows):
         for j in range(num_cols):
             index = i * num_cols + j
-            if index < len(images):
-                axes[i, j].imshow(images[index])
-                axes[i, j].get_xaxis().set_visible(False)
-                axes[i, j].get_yaxis().set_visible(False)
-                
+            if index < len(img_arr):
+                axes[i, j].imshow(img_arr[index])
+                if i == 0:
+                    axes[i, j].set_title(column_labels[j])
+                if j == 0:
+                    axes[i, j].set_ylabel(model_labels[i], rotation=0, size='large')
+                    axes[i, j].yaxis.set_label_coords(-.2, .5)
 
-    # Labels for columns at the very top
-    for j, label in enumerate(column_labels):
-        ax = axes[0, j]
-        ax.set_title(label, fontsize=18, pad=10)  
+                axes[i, j].xaxis.set_tick_params(labelbottom=False)
+                axes[i, j].yaxis.set_tick_params(labelleft=False)
+  
+                axes[i, j].set_xticks([])
+                axes[i, j].set_yticks([])
 
-    for i, label in enumerate(row_labels):
-        ax = axes[i, 0]
-        plt.gcf().text(0.04, 0.195+(i*0.195), label, fontsize=18)
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plot_name =plot_name+ '_pred_examples.png'
+    plt.savefig(os.path.join(save_path,plot_name), bbox_inches='tight')
 
- 
 
-    plt.subplots_adjust(wspace=0, hspace=0.01)
-    plt.savefig(os.path.join(save_path,plot_name))
-    return fig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
