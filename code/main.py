@@ -114,12 +114,9 @@ if not args.qual_eval_only:
         model_testing.get_full_quant_eval( 'test', trained_model, group_wise=True, train_time=train_time )
         
 
-# qualitativ model eval
-#plot_names = ['01434_train_0.png','01067_train_1+.png','00932_train_2+.png','00842_train_3+.png']
-#plot_names = ['01269_train_0.png','00864_train_1+.png','00265_train_2+.png','00156_train_3+.png']
 
 images = model_testing.get_full_qual_eval("_IHC_256_50",trained_model)
-
+print(model_name)
 model_list = []
 model_list.append(model_name)
 plot_utils.save_plot_for_models(args=args, model_list=model_list, IHC_score='all')

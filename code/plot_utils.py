@@ -151,7 +151,8 @@ def get_imgs_for_all_models(args, model_list, img_names):
     # get images from all networks in model_list
     for model_name in model_list:
         model_dir = os.path.join(result_dir,model_name)
-        if 'U-Net' in model_name:
+        
+        if 'U_Net' in model_name:
             args.model = 'U_Net'
             if '3step' in model_name:
                 args.type = 'S'
@@ -183,8 +184,7 @@ def get_imgs_for_all_models(args, model_list, img_names):
             model_label_name = 'pix2pix\n'+model_label_name
 
         model_labels.append(model_label_name)
-
-        model, model_name = utils.build_model(args)
+        model ,model_framework, model_arch, model_specs = utils.build_model(args)
         args.train_path = model_dir
         trained_model = utils.load_model_weights(args, model, model_name)
         trained_model = model.to(args.device)
@@ -233,7 +233,6 @@ def save_plot_for_models(args, model_list, IHC_score):
     num_rows = len(model_labels) 
     num_cols = len(img_names)
 
-    print(model_labels)
 
     #row_labels = model_labels
     # Set the size of each subplot

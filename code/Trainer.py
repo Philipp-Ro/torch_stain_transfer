@@ -80,10 +80,10 @@ class train_loop:
             ssim_list = []
             psnr_list = []
                  
-            num_patches = ((1024 * 1024) // self.args.img_size**2)-1
+            num_patches = ((1024 * 1024) // self.args.img_size**2)
 
             # update patch on dataloader 
-            if k>num_patches:
+            if k>num_patches-1:
                 k=0
 
             # Train data loader
@@ -299,9 +299,9 @@ class train_loop:
             total_loss = total_loss+ gen_loss
 
         if self.args.gaus_loss:
-            G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= utils.gausian_blurr_loss(self.MSE_LOSS, fake_img, real_img)  
-            G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= utils.gausian_blurr_loss(self.MSE_LOSS, fake_blurr_IHC, real_blur_IHC)  
-            G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= utils.gausian_blurr_loss(self.MSE_LOSS, fake_blurr_IHC, real_blur_IHC) 
+            G_L2_LOSS ,fake_blurr_IHC, real_blur_IHC= utils.gausian_blurr_loss(self.MSE, fake_img, real_img)  
+            G_L3_LOSS ,fake_blurr_IHC, real_blur_IHC= utils.gausian_blurr_loss(self.MSE, fake_blurr_IHC, real_blur_IHC)  
+            G_L4_LOSS ,fake_blurr_IHC, real_blur_IHC= utils.gausian_blurr_loss(self.MSE, fake_blurr_IHC, real_blur_IHC) 
             gausian_loss = G_L2_LOSS + G_L3_LOSS +G_L4_LOSS
             gausian_loss = gausian_loss * 1
             total_loss = total_loss + gausian_loss

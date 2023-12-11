@@ -52,7 +52,9 @@ class test_network():
         # init quant eval path
         testing_name = 'quantitative eval'
         quant_eval_path = os.path.join(self.args.train_path,testing_name)
-        os.mkdir(quant_eval_path)
+
+        if not os.path.isdir(quant_eval_path):
+            os.mkdir(quant_eval_path)
 
         #save model 
         model_name_epoch =  'model_final_weights_'+str(self.args.num_epochs)+'_epochs.pth'
@@ -74,8 +76,8 @@ class test_network():
         result_total = utils.init_eval()
         prediction_time = []
         result_total['train_time'] = train_time
-        num_patches = ((1024 * 1024) // self.args.img_size**2)-1
-        print(num_patches)
+        num_patches = ((1024 * 1024) // self.args.img_size**2)
+
         if data_set =="train":
             start = 0
             stop = num_patches 
@@ -92,7 +94,7 @@ class test_network():
             print('QUANTITATIV EVALUATION ON TEST')
             print('---------------------------------------------- ')
 
-                
+        model.eval()      
         for epoch in range(start,stop,1):
             data_set_init = new_loader.stain_transfer_dataset( img_patch=epoch, set=data_set, args=self.args) 
             loader = DataLoader(data_set_init, batch_size=1, shuffle=False) 
@@ -140,6 +142,7 @@ class test_network():
 
 
     def get_full_qual_eval(self, classifier_name, model):
+        model.eval()
             
         # init qual eval dir
         qual_eval_path = os.path.join(self.args.train_path,"qualitative eval")
