@@ -41,6 +41,7 @@ class test_network():
         self.transform_resize = T.Resize((256,256))
 
         self.model = model.to(args.device)
+        self.model.eval()
 
 
 
@@ -62,21 +63,26 @@ class test_network():
         torch.save(model.state_dict(), final_model_path)
 
         # load train data
-        if 'Diffusion' not in self.args.model:
+        if 'Diffusion' in self.args.model:
+            num_patches=1   
+        else:
             with open(self.args.train_eval_path, "rb") as fp:   
                     self.train_plot_eval = pickle.load(fp)
 
             with open(self.args.test_eval_path, "rb") as fp:   
                     self.test_plot_eval = pickle.load(fp)
 
-        # plot the train metrics
-        plot_utils.plot_trainresult(self.args, quant_eval_path, self.train_plot_eval, self.test_plot_eval)
+            # plot the train metrics
+            plot_utils.plot_trainresult(self.args, quant_eval_path, self.train_plot_eval, self.test_plot_eval)
 
         # init eval 
         result_total = utils.init_eval()
         prediction_time = []
         result_total['train_time'] = train_time
-        num_patches = ((1024 * 1024) // self.args.img_size**2)
+        if self.args.img_resize == True:
+            num_patches=1      
+        else:
+            num_patches = ((1024 * 1024) // self.args.img_size**2)
 
         if data_set =="train":
             start = 0
@@ -94,26 +100,33 @@ class test_network():
             print('QUANTITATIV EVALUATION ON TEST')
             print('---------------------------------------------- ')
 
-        model.eval()      
+        #model.eval()      
         for epoch in range(start,stop,1):
             data_set_init = new_loader.stain_transfer_dataset( img_patch=epoch, set=data_set, args=self.args) 
             loader = DataLoader(data_set_init, batch_size=1, shuffle=False) 
 
             mse_list, ssim_list, psnr_list = utils.init_epoch_eval_list()
             show_epoch  = 'patch: '+str(epoch)
-            print(show_epoch)
 
             for i, (real_HE, real_IHC, img_name) in enumerate(loader):
-                # predict:
                 
+                if self.args.img_resize or 'Diffusion' in self.args.model:
+                    # resize full image
+                    real_HE = self.transform_resize(real_HE)
+                    real_IHC = self.transform_resize(real_IHC)
+
+
+                # predict:
                 if self.args.model == 'Diffusion':
                     start_pred = time.time()
-                    fake_IHC = self.diffusion.sample(model , n=real_IHC.shape[0], y=real_HE)
+                    with torch.no_grad():
+                        fake_IHC = self.diffusion.sample(model , n=real_IHC.shape[0], y=real_HE)
                     end_pred  = time.time()
                     prediction_time.append(end_pred - start_pred)
                 else:
                     start_pred = time.time()
-                    fake_IHC = model(real_HE)
+                    with torch.no_grad():
+                        fake_IHC = model(real_HE)
                     end_pred  = time.time()
                     prediction_time.append(end_pred - start_pred)
 

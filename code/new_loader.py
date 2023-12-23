@@ -56,7 +56,7 @@ class stain_transfer_dataset(Dataset):
         random.seed(seed) 
         torch.manual_seed(seed)
         IHC_tensor = self.preprocess_img(IHC_img)
-
+        
         if self.args.img_resize:
             HE_out = self.transform_resize(HE_tensor)
             IHC_out = self.transform_resize(IHC_tensor)
@@ -70,7 +70,7 @@ class stain_transfer_dataset(Dataset):
 
         HE_out = HE_out.to(self.args.device)
         IHC_out = IHC_out.to(self.args.device)
-
+        
         return HE_out,  IHC_out, self.img_names[idx]
 
 
@@ -114,10 +114,12 @@ def init_img_preproces(args,set):
         if "vertical_flip"in args.img_transforms:
             transform_list.append(transforms.RandomVerticalFlip(p=0.5))
 
+    transform_list.append(transforms.ToTensor())
+    
     if args.model == 'Diffusion':
         transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
 
-    transform_list.append(transforms.ToTensor())
+    
     preprocess_img = transforms.Compose(transform_list)
 
     return preprocess_img

@@ -206,6 +206,10 @@ def build_model(args):
     if args.gan_framework == 'None':
         model_framework = ''
 
+    if args.img_resize == True:
+        model_specs = model_specs +'_resize'
+    
+
 
     return model ,model_framework, model_arch, model_specs
 
@@ -243,12 +247,12 @@ def set_paths(args  ,model_framework, model_arch, model_specs):
 
     args.train_path = os.path.join(model_dir,(model_arch+model_specs))
     args.train_eval_path = os.path.join(args.train_path,'train_plot_eval')
-    args.test_eval_path = os.path.join(args.train_path,'test_plot_eval')
+    args.test_eval_path = os.path.join(args.train_path,'test_plot_eval_resize')
     args.c_path = os.path.join(args.train_path,"checkpoints")
     args.tp_path = os.path.join(args.train_path,'train_plots')
     
 
-    if os.path.isdir(args.train_path):
+    if os.path.isdir(args.train_path) and not args.model == 'Diffusion':
         train_eval_path = os.path.join(args.train_path,'train_plot_eval')
         with open(train_eval_path, "rb") as fp:   
                 train_plot_eval = pickle.load(fp)
@@ -259,9 +263,10 @@ def set_paths(args  ,model_framework, model_arch, model_specs):
                 test_plot_eval = pickle.load(fp)
 
     else:
-        os.mkdir(args.train_path)
-        os.mkdir(args.c_path)
-        os.mkdir(args.tp_path)
+        if not args.model == 'Diffusion':
+            os.mkdir(args.train_path)
+            os.mkdir(args.c_path)
+            os.mkdir(args.tp_path)
 
         train_plot_eval =  {}
         train_plot_eval['MSE'] = []

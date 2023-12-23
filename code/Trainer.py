@@ -79,7 +79,8 @@ class train_loop:
             mse_list = []
             ssim_list = []
             psnr_list = []
-                 
+
+            self.gen.train()
             num_patches = ((1024 * 1024) // self.args.img_size**2)
 
             # update patch on dataloader 
@@ -194,7 +195,7 @@ class train_loop:
                     show_val  = 'Test for Epoch: '+str(epoch) 
                     print(show_val)
                     # validation every 10 epochs
-                    self.test_plot_eval = self.get_test_scores( self.gen, self.test_plot_eval)
+                    self.test_plot_eval = self.get_test_scores(  self.test_plot_eval)
                     self.test_plot_eval['x'].append(epoch)
 
 
@@ -225,13 +226,15 @@ class train_loop:
 
         return gen_out, self.train_plot_eval, self.test_plot_eval
     
-    def get_test_scores(self, model, result):
+    def get_test_scores(self, result):
         
         num_patches = ((1024 * 1024) // self.args.img_size**2)-1
         epoch_result =  {}
         epoch_result['MSE'] = []
         epoch_result['SSIM'] = []
         epoch_result['PSNR'] = []
+
+        self.gen.eval()
 
         for epoch in range(0,num_patches,1):
             data_set = new_loader.stain_transfer_dataset( img_patch=epoch, set='test', args=self.args) 
@@ -243,7 +246,8 @@ class train_loop:
 
             for i, (real_HE, real_IHC, img_name) in enumerate(loader):
 
-                fake_IHC = model(real_HE)
+                with torch.no_grad():
+                    fake_IHC = self.gen(real_HE)
 
                 mse_score = self.MSE(real_IHC,fake_IHC)
                 ssim_score = self.SSIM(real_IHC,fake_IHC)
