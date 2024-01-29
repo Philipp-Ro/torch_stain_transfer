@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+# Diffusion model implementation inspired by: https://github.com/dome272/Diffusion-Models-pytorch
 #-----------------------------------------------------------------------------------------------
 # MULTIHEAD SELF ATTENTION
 #-----------------------------------------------------------------------------------------------
@@ -52,9 +53,6 @@ class MSA(nn.Module):
 # -------------------------------------------------------------------------------------------------------------------------
 # Generator based on U-net 
 # -------------------------------------------------------------------------------------------------------------------------
-
-
-
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, residual=False):
         super().__init__()

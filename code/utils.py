@@ -247,7 +247,7 @@ def set_paths(args  ,model_framework, model_arch, model_specs):
 
     args.train_path = os.path.join(model_dir,(model_arch+model_specs))
     args.train_eval_path = os.path.join(args.train_path,'train_plot_eval')
-    args.test_eval_path = os.path.join(args.train_path,'test_plot_eval_resize')
+    args.test_eval_path = os.path.join(args.train_path,'test_plot_eval')
     args.c_path = os.path.join(args.train_path,"checkpoints")
     args.tp_path = os.path.join(args.train_path,'train_plots')
     
@@ -399,6 +399,63 @@ def get_IHC_score(img_name):
 
     return score
 
+def write_summary_latex_table(test_summary, train_summary, path):
+    mertics = ['MSE', 'SSIM', 'PSNR']
+    
+    with open(path, 'w') as f: 
+        for metric in mertics:
+            f.write("\\begin{table}[H]")
+            f.write("\n")
+            f.write("\\centering")
+            f.write("\n")
+            f.write("\\begin{tabular}{|l|l|l|l|l|l|l|}\n")
+            f.write("\\hline\n")
+
+            f.write("metric &set &total &score:0 &score:1+ &score:2+ &score:3+\\\\ ")
+            f.write("\n")
+            f.write("\\hline\n")
+
+            metric_add_on = ['_mean', '_var', '_min' ,'_max']
+            for add_on in metric_add_on:
+                if add_on == "_mean":
+                    metrtic_name = "$"+metric+"_{mean}$"
+                if add_on == "_var":
+                    metrtic_name = "$"+metric+"_{var}$"
+                if add_on == "_min":
+                    metrtic_name = "$"+metric+"_{min}$"
+                if add_on == "_max":
+                    metrtic_name = "$"+metric+"_{max}$"
+                diff_name = metric+add_on
+
+                
+                #f.write(metrtic_name)
+                f.write("\multirow{2}{*}{"+metrtic_name+"}")
+                f.write("&test")
+                for key_group in test_summary: 
+                    if key_group != 'prediction_time' and  key_group !='train_time':
+                        value = test_summary[key_group][diff_name]
+                        write_value = round(value,4)
+                        f.write("&"+str(write_value ) )
+                f.write("\\\\")
+                f.write("\n")
+                f.write("&train")
+                for key_group in test_summary: 
+                    if key_group != 'prediction_time' and  key_group !='train_time':
+                        value = train_summary[key_group][diff_name]
+                        write_value = round(value,4)
+                        f.write("&"+str( write_value))
+                f.write("\\\\")
+                f.write("\n")
+                f.write("\hline")
+                f.write("\n")  
+
+            f.write("\\end{tabular}\n") 
+            f.write("\\end{table}")
+            f.write("\n")  
+            f.write("\n")  
+            f.write("\n")  
+
+    f.close() 
 
 
 

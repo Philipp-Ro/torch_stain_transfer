@@ -3,11 +3,8 @@ import plot_utils
 import Trainer
 import testing
 import utils
-import os
-from pathlib import Path
 import time
-import classification
-import torch
+import os
 # -----------------------------------------------------------------------------------------------------------------
 # Arguments
 # -----------------------------------------------------------------------------------------------------------------
@@ -27,8 +24,6 @@ def my_args():
     
     parser.add_argument('--model', type=str, default="", help='model architecture')
     parser.add_argument('--type', type=str, default="", help='scope of the model S or M or L')
-    #parser.add_argument('--pix2pix', action='store_true', default=False, help='use the generator model in gan framework')
-    #parser.add_argument('--score_gan', action='store_true', default=False, help='use the generator model in score gan framework')
     parser.add_argument('--diff_noise_steps', type=int, default=1000, help='Image size')
     parser.add_argument('--gan_framework', type=str, default="None", help='set a gan framework')
 
@@ -42,7 +37,7 @@ def my_args():
     parser.add_argument('--img_resize', action='store_true', default=False, help='resize image to 256')
     parser.add_argument('--in_channels', type=int, default=3, help='input channels')
     parser.add_argument('--img_transforms', type=list, default=["colorjitter",'horizontal_flip','vertical_flip'], help='choose image transforms from normalize,colorjitter,horizontal_flip,grayscale')
-    parser.add_argument('--num_epochs', type=int, default=100, help='epoch num')
+    parser.add_argument('--num_epochs', type=int, default=2, help='epoch num')
     parser.add_argument('--decay_epoch', type=int, default=80, help='decay epoch num')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--device', type=str, default="cuda", help='device')
@@ -84,9 +79,12 @@ for i in vars(args):
 # init model
 model ,model_framework, model_arch, model_specs = utils.build_model(args)
 
+if model_framework != None:
+    model_result_path = model_framework+model_arch+model_specs
+else:
+    model_result_path = model_arch+model_specs
+
 args, model_name, train_plot_eval, test_plot_eval = utils.set_paths(args, model_framework, model_arch, model_specs)
-
-
 
 train_time = 0
 # train model
@@ -98,28 +96,26 @@ if not args.quant_eval_only and not args.qual_eval_only:
     train_time = end-start
 
 # init evaluation
-
-
 trained_model = utils.load_model_weights(args, model, model_name)
 
-
-model_testing = testing.test_network(args, trained_model, model_name)
+model_testing = testing.test_network(args, trained_model)
 
 # quantitativ evaluation
 if not args.qual_eval_only:
     if "diff" not in model_name:
-        model_testing.get_full_quant_eval( 'test', trained_model, group_wise=True, train_time=train_time )
-        model_testing.get_full_quant_eval( 'train', trained_model, group_wise=True, train_time=train_time )
+        result_test = model_testing.get_full_quant_eval('test', trained_model, train_time=train_time)
+        result_train = model_testing.get_full_quant_eval('train', trained_model, train_time=train_time)
     else:
-        model_testing.get_full_quant_eval( 'test', trained_model, group_wise=True, train_time=train_time )
-        
+        result_test =model_testing.get_full_quant_eval('train', trained_model, train_time=train_time)
+        result_train =model_testing.get_full_quant_eval('test', trained_model, train_time=train_time)
+
+    latex_table_path = os.path.join(args.train_path,'quantitative eval/summary_latex.txt')
+    utils.write_summary_latex_table(result_test, result_train, latex_table_path)
+
+model_list = [model_result_path]   
+images = model_testing.get_full_qual_eval(classifier_name ="ViT_resize", model=trained_model, model_list=model_list )
 
 
-images = model_testing.get_full_qual_eval("_IHC_256_50",trained_model)
-print(model_name)
-model_list = []
-model_list.append(model_name)
-plot_utils.save_plot_for_models(args=args, model_list=model_list, IHC_score='all')
 
 
    

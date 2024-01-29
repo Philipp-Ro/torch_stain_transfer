@@ -86,7 +86,7 @@ def get_imgs(args, img_names, model):
     transform_resize = T.Resize((256,256))
 
     if args.model == 'Diffusion':
-        diffusion = Diffusion(noise_steps=args.diff_noise_steps,img_size=args.img_size,device=args.device)
+        diffusion = Diffusion(noise_steps=args.diff_noise_steps,img_size=256,device=args.device)
 
     test_data = new_loader.stain_transfer_dataset( img_patch=0, set='test',args = args) 
     test_data_loader = DataLoader(test_data, batch_size=1, shuffle=False) 
@@ -98,9 +98,15 @@ def get_imgs(args, img_names, model):
             real_IHC = transform_resize(real_IHC)
 
             if args.model == 'Diffusion':
-                fake_IHC = diffusion.sample(model , n=real_IHC.shape[0], y=real_HE)
 
-            elif args.model == 'source':
+                fake_IHC = diffusion.sample(model , n=real_IHC.shape[0], y=real_HE)
+                fake_IHC = fake_IHC.cpu().detach().numpy()
+                fake_IHC = np.squeeze(fake_IHC)
+                fake_IHC = np.transpose(fake_IHC, (1, 2, 0))
+                img_arr.append(fake_IHC)
+
+
+            elif model == 'source':
                 fake_IHC = []
 
                 real_HE_plot = real_HE.cpu().detach().numpy()
@@ -108,7 +114,7 @@ def get_imgs(args, img_names, model):
                 real_HE_plot = np.transpose(real_HE_plot, (1, 2, 0))
                 img_arr.append(real_HE_plot)
 
-            elif args.model == 'target':
+            elif model == 'target':
                 fake_IHC = []
 
                 real_IHC_plot = real_IHC.cpu().detach().numpy()
@@ -129,21 +135,19 @@ def get_imgs(args, img_names, model):
     
 def get_imgs_for_all_models(args, model_list, img_names):
     
-    model = []
+
     model_labels = []
 
     # get HE imgs
-    args.model = 'source'
+    model = 'source'
     img_arr_source = get_imgs(args, img_names, model)
     img_arr =  img_arr_source
     model_labels.append('HE\nInput')
     
 
     # get IHC imgs
-    args.model = 'target'
+    model = 'target'
     img_arr_target = get_imgs(args, img_names, model)
-    #img_arr = np.concatenate((img_arr, img_arr_target), axis=0)
-    #img_arr = np.concatenate((img_arr, img_arr_target), axis=1)
     img_arr = np.vstack((img_arr, img_arr_target))
     model_labels.append('IHC\nTarget')
 
@@ -151,7 +155,7 @@ def get_imgs_for_all_models(args, model_list, img_names):
     # get images from all networks in model_list
     for model_name in model_list:
         model_dir = os.path.join(result_dir,model_name)
-        
+  
         if 'U_Net' in model_name:
             args.model = 'U_Net'
             if '3step' in model_name:
@@ -169,25 +173,27 @@ def get_imgs_for_all_models(args, model_list, img_names):
                 args.type = 'M'
 
         if 'Swin_T' in model_name:
-            args.model = 'U_Net'
+            args.model = 'Swin'
             args.type = 'S'
 
-        if 'Diffusion' in model_name:
+        if 'diffusion' in model_name:
             args.model = 'Diffusion'
             args.type = 'M'
 
         model_label_name = args.model +'\n'+args.type
-        if 'score_gan' in model_name:
-            model_label_name = 'score_gan\n'+model_label_name
 
         if 'Pix2Pix' in model_name:
             model_label_name = 'pix2pix\n'+model_label_name
+            args.gan_framework = 'pix2pix'
 
         model_labels.append(model_label_name)
+
+
         model ,model_framework, model_arch, model_specs = utils.build_model(args)
         args.train_path = model_dir
         trained_model = utils.load_model_weights(args, model, model_name)
         trained_model = model.to(args.device)
+        #trained_model.eval()
 
         img_arr_model = get_imgs(args, img_names, trained_model)
         #img_arr = np.concatenate((img_arr, img_arr_model), axis=1)
@@ -219,12 +225,12 @@ def save_plot_for_models(args, model_list, IHC_score):
 
 
     if IHC_score == 'all':
-        img_names = ['01269_train_0.png','00864_train_1+.png','00265_train_2+.png','00156_train_3+.png']
+        img_names = ['00292_train_0.png','00323_train_1+.png','00605_train_2+.png','01190_train_3+.png']
         plot_name = 'all_IHC_score_model_'+ args.model+'_'+args.type
-        column_labels = ['img\nscore 3+','img\nscore 2+','img\nscore 1+','img\nscore 0']
+        column_labels = ['img\nscore 0','img\nscore 1+','img\nscore 2+','img\nscore 3+']
         
     if len(model_list)==1:
-        save_path = os.path.join(args.train_path,"qualitative eval")
+        save_path = os.path.join(Path.cwd(),"qualitative eval")
     else:
         save_path = os.path.join(Path.cwd(),'all_net_plots')
 
@@ -245,7 +251,6 @@ def save_plot_for_models(args, model_list, IHC_score):
     for ax in axes.ravel():
         ax.set_aspect('equal')
             
-
     # Create subplots and labels
     for i in range(num_rows):
         for j in range(num_cols):
@@ -265,8 +270,8 @@ def save_plot_for_models(args, model_list, IHC_score):
                 axes[i, j].set_yticks([])
 
     plt.subplots_adjust(wspace=0, hspace=0)
-    plot_name =plot_name+ '_pred_examples.png'
-    plt.savefig(os.path.join(save_path,plot_name), bbox_inches='tight')
+    plot_name ='masterthesis_results/'+plot_name+ 'pred_examples.png'
+    plt.savefig(os.path.join(Path.cwd(),plot_name), bbox_inches='tight')
 
 
 

@@ -17,13 +17,12 @@ import torchvision.transforms as T
 from sklearn import metrics
 import matplotlib.pyplot as plt
 import pandas as pd
-
+from transformers import ViTForImageClassification
 
 class test_network():
-    def __init__(self, args, model, model_name):
+    def __init__(self, args, model):
         self.args = args
-        self.model_name = model_name
-
+        
         # init metrics
         self.SSIM = StructuralSimilarityIndexMeasure(data_range=1.0).to(args.device)
         self.PSNR = PeakSignalNoiseRatio().to(args.device)
@@ -31,14 +30,18 @@ class test_network():
         self.CE = torch.nn.CrossEntropyLoss()
 
         # init classifier
-        classifier = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)  
-        classifier.fc = torch.nn.Linear(classifier.fc.in_features, 4)
-        torch.nn.init.xavier_uniform_(classifier.fc.weight)
+        
+        #classifier = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)  
+        #classifier.fc = torch.nn.Linear(classifier.fc.in_features, 4)
+        #torch.nn.init.xavier_uniform_(classifier.fc.weight)
+        model_name_or_path = 'google/vit-base-patch16-224-in21k'
+        classifier = ViTForImageClassification.from_pretrained(model_name_or_path, num_labels=4)
         self.classifier = classifier.to(args.device)
 
         # init diffusion
         self.diffusion = Diffusion(noise_steps=args.diff_noise_steps,img_size=args.img_size,device=args.device)
         self.transform_resize = T.Resize((256,256))
+        self.transform_resize_class=T.Resize((224,224))
 
         self.model = model.to(args.device)
         self.model.eval()
@@ -48,17 +51,17 @@ class test_network():
             
         
 
-    def get_full_quant_eval(self, data_set, model, group_wise, train_time ):
+    def get_full_quant_eval(self, data_set, model, train_time ):
 
         # init quant eval path
-        testing_name = 'quantitative eval'
-        quant_eval_path = os.path.join(self.args.train_path,testing_name)
+        
+        quant_eval_path = os.path.join(self.args.train_path,'quantitative eval')
 
         if not os.path.isdir(quant_eval_path):
             os.mkdir(quant_eval_path)
 
         #save model 
-        model_name_epoch =  'model_final_weights_'+str(self.args.num_epochs)+'_epochs.pth'
+        model_name_epoch =  'best_model_test.pth'
         final_model_path = os.path.join(quant_eval_path, model_name_epoch)
         torch.save(model.state_dict(), final_model_path)
 
@@ -81,7 +84,7 @@ class test_network():
         result_total['train_time'] = train_time
         if self.args.img_resize == True:
             num_patches=1      
-        else:
+        if self.args.img_resize != True and 'Diffusion' not in self.args.model:
             num_patches = ((1024 * 1024) // self.args.img_size**2)
 
         if data_set =="train":
@@ -99,14 +102,12 @@ class test_network():
             print('---------------------------------------------- ')
             print('QUANTITATIV EVALUATION ON TEST')
             print('---------------------------------------------- ')
-
-        #model.eval()      
+ 
         for epoch in range(start,stop,1):
             data_set_init = new_loader.stain_transfer_dataset( img_patch=epoch, set=data_set, args=self.args) 
             loader = DataLoader(data_set_init, batch_size=1, shuffle=False) 
 
             mse_list, ssim_list, psnr_list = utils.init_epoch_eval_list()
-            show_epoch  = 'patch: '+str(epoch)
 
             for i, (real_HE, real_IHC, img_name) in enumerate(loader):
                 
@@ -114,7 +115,6 @@ class test_network():
                     # resize full image
                     real_HE = self.transform_resize(real_HE)
                     real_IHC = self.transform_resize(real_IHC)
-
 
                 # predict:
                 if self.args.model == 'Diffusion':
@@ -134,11 +134,10 @@ class test_network():
                 ssim_score = self.SSIM(fake_IHC, real_IHC)
                 psnr_score = self.PSNR(fake_IHC, real_IHC)
                 mse_score = self.MSE(fake_IHC, real_IHC)
-
-                if group_wise:
-                    mse_list = utils.append_score_to_group_list(mse_score.item() ,mse_list, img_name)
-                    ssim_list = utils.append_score_to_group_list(ssim_score.item() ,ssim_list, img_name)
-                    psnr_list = utils.append_score_to_group_list(psnr_score.item()  ,psnr_list, img_name)
+   
+                mse_list = utils.append_score_to_group_list(mse_score.item() ,mse_list, img_name)
+                ssim_list = utils.append_score_to_group_list(ssim_score.item() ,ssim_list, img_name)
+                psnr_list = utils.append_score_to_group_list(psnr_score.item()  ,psnr_list, img_name)
                 
                 mse_list['total'].append(mse_score.item())
                 ssim_list['total'].append(ssim_score.item())
@@ -150,11 +149,29 @@ class test_network():
                 result_total[key_group]['PSNR_mean']=np.mean(psnr_list[key_group])
                 result_total[key_group]['num_img'] = len(mse_list[key_group])
 
+        for key_group,value in mse_list.items():
+            result_total[key_group]['MSE_mean']=np.mean(mse_list[key_group])
+            result_total[key_group]['MSE_var']=np.var(mse_list[key_group])
+            result_total[key_group]['MSE_min']=min(mse_list[key_group])
+            result_total[key_group]['MSE_max']=max(mse_list[key_group])
+
+            result_total[key_group]['SSIM_mean']=np.mean(ssim_list[key_group])
+            result_total[key_group]['SSIM_var']=np.var(ssim_list[key_group])
+            result_total[key_group]['SSIM_min']=min(ssim_list[key_group])
+            result_total[key_group]['SSIM_max']=max(ssim_list[key_group])
+
+            result_total[key_group]['PSNR_mean']=np.mean(psnr_list[key_group])
+            result_total[key_group]['PSNR_var']=np.var(psnr_list[key_group])
+            result_total[key_group]['PSNR_min']=min(psnr_list[key_group])
+            result_total[key_group]['PSNR_max']=max(psnr_list[key_group])
+
+            result_total[key_group]['num_img']=len(mse_list[key_group])
+
         result_total['prediction_time'] = np.mean(prediction_time)
-        utils.write_result_in_file(save_path, result_total, data_set)
+        return result_total
 
 
-    def get_full_qual_eval(self, classifier_name, model):
+    def get_full_qual_eval(self, classifier_name, model, model_list):
         model.eval()
             
         # init qual eval dir
@@ -162,8 +179,10 @@ class test_network():
         os.mkdir(qual_eval_path)
 
         #save model in test file 
-        model_name_epoch =  'model_final_weights_'+str(self.args.num_epochs)+'_epochs.pth'
-        final_model_path = os.path.join(qual_eval_path, model_name_epoch)
+        model_name_epoch =  'model_final_weights_gen.pth'
+        final_model_path = os.path.join(self.args.train_path, model_name_epoch)
+        #model_name_epoch =  'model_final_weights_'+str(self.args.num_epochs)+'_epochs.pth'
+        #final_model_path = os.path.join(qual_eval_path, model_name_epoch)
         torch.save(model.state_dict(), final_model_path)
 
         print('---------------------------------------------- ')
@@ -173,7 +192,8 @@ class test_network():
 
         # set save names
         model_png_name = self.args.model +'_'+self.args.type
-        best_model_weights = os.path.join(Path.cwd(),'classifier_weights'+classifier_name+'.pth')
+        result_path = os.path.join(Path.cwd(),"masterthesis_results")
+        best_model_weights = os.path.join(result_path,'classifier_weights'+ classifier_name +'.pth')
         self.classifier.load_state_dict(torch.load(best_model_weights))
         predictions = []
         score_list = []
@@ -191,17 +211,7 @@ class test_network():
                 real_IHC = self.transform_resize(real_IHC)
 
                 # get IHC score target
-                if img_name[0].endswith("0.png"):
-                    score = torch.tensor(0)
-
-                if img_name[0].endswith("1+.png"):
-                    score = torch.tensor(1)
-
-                if img_name[0].endswith("2+.png"):
-                    score = torch.tensor(2)  
-
-                if img_name[0].endswith("3+.png"):
-                    score =torch.tensor(3)
+                score = utils.get_IHC_score(img_name)
 
                 # get IHC score prediction 
                 if self.args.model == 'Diffusion':
@@ -214,10 +224,15 @@ class test_network():
                         
                 else:
                     fake_IHC = model(real_HE)
-                    outputs = self.classifier(fake_IHC)
+                    fake_IHC_in = self.transform_resize_class(fake_IHC)
+                    outputs = self.classifier(fake_IHC_in)
 
-                    
+                # one hot encode gt
+                # predict score 
+                outputs = outputs.logits
+     
                 outputs = torch.squeeze(outputs)
+                #####
                 value, idx = torch.max(outputs, 0)
 
                 predictions.append(idx.item())
@@ -244,7 +259,6 @@ class test_network():
         cm_display.plot(cmap=plt.cm.Blues)
             
         conf_mat_name = model_png_name+'_conf_mat.png'
-            
         if self.args.gan_framework == 'pix2pix':
             conf_mat_name = 'Pix2Pix_'+conf_mat_name
         if self.args.gan_framework == 'score_gan':
@@ -252,6 +266,74 @@ class test_network():
 
         save_path_conf_mat =os.path.join(qual_eval_path,conf_mat_name)
         plt.savefig(save_path_conf_mat,dpi=300)
+
+        # plot images
+        model_labels = []
+        img_names = ['00292_train_0.png','00323_train_1+.png','00605_train_2+.png','01190_train_3+.png']
+        column_labels = ['img\nscore 0','img\nscore 1+','img\nscore 2+','img\nscore 3+']
+
+        # get HE imgs
+        img_arr_source = plot_utils.get_imgs(args=self.args, img_names=img_names, model= 'source')
+        img_arr =  img_arr_source
+        model_labels.append('HE\nInput')
+        
+
+        # get IHC imgs
+        img_arr_target = plot_utils.get_imgs(args=self.args, img_names=img_names, model= 'source')
+        img_arr = np.vstack((img_arr, img_arr_target))
+        model_labels.append('IHC\nTarget')
+
+        # get generated pictures
+        img_arr_model = plot_utils.get_imgs(args=self.args, img_names=img_names, model= model)
+        img_arr = np.vstack((img_arr,  img_arr_model))
+
+
+        model_label_name = self.args.model +'\n'+ self.args.type
+        if self.args.gan_framework == 'pix2pix':
+            model_label_name = 'pix2pix\n'+model_label_name
+            
+
+        model_labels.append(model_label_name)
+
+        num_rows = len(model_labels) 
+        num_cols = len(img_names)
+
+        #row_labels = model_labels
+        # Set the size of each subplot
+        subplot_size = 3  # Adjust this value to control the size of each subplot
+        fig_width = subplot_size * num_cols+ 1.0 
+        fig_height = subplot_size * num_rows 
+        # Create a figure with a size that accommodates the subplots and labels
+        fig, axes = plt.subplots( num_rows, num_cols, figsize=(fig_width, fig_height))
+
+        for ax in axes.ravel():
+            ax.set_aspect('equal')
+                
+        # Create subplots and labels
+        for i in range(num_rows):
+            for j in range(num_cols):
+                index = i * num_cols + j
+                if index < len(img_arr):
+                    axes[i, j].imshow(img_arr[index])
+                    if i == 0:
+                        axes[i, j].set_title(column_labels[j])
+                    if j == 0:
+                        axes[i, j].set_ylabel(model_labels[i], rotation=0, size='large')
+                        axes[i, j].yaxis.set_label_coords(-.2, .5)
+
+                    axes[i, j].xaxis.set_tick_params(labelbottom=False)
+                    axes[i, j].yaxis.set_tick_params(labelleft=False)
+    
+                    axes[i, j].set_xticks([])
+                    axes[i, j].set_yticks([])
+
+        plt.subplots_adjust(wspace=0, hspace=0)
+        model_name = self.args.model+'_'+ self.args.type
+        plot_save_path = os.path.join(self.args.train_path,'qualitative eval')
+        plot_name = model_name+ 'pred_examples.png'
+        plt.savefig(os.path.join(plot_save_path,plot_name), bbox_inches='tight')
+
+
 
         
 
