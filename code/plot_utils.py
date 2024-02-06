@@ -275,6 +275,39 @@ def save_plot_for_models(args, model_list, IHC_score):
 
 
 
+def get_boxplot_for_scores(args, metric_name, train_list, test_list, path):
+    train_plot_data = [ train_list['group_0'],train_list['group_1'], train_list['group_2'], train_list['group_3']]
+    test_plot_data = [ test_list['group_0'], test_list['group_1'], test_list['group_2'], test_list['group_3']]
+
+    score_labels = [ '0', '1+', '2+', '3+']
+    fig = plt.figure(figsize =(10, 7))
+    ax = fig.add_subplot(111)
+
+    def define_box_properties(plot_name, color_code, label):
+        for k, v in plot_name.items():
+            plt.setp(plot_name.get(k), color=color_code)
+        plt.plot([], c=color_code, label=label)
+        plt.legend()
+
+
+    bp_train = ax.boxplot(train_plot_data , positions=np.array(np.arange(len(train_plot_data)))*2.0-0.35, widths=0.6)
+    bp_test = ax.boxplot(test_plot_data, positions=np.array(np.arange(len(test_plot_data)))*2.0+0.35, widths=0.6)
+
+
+    
+    # setting colors for each groups
+    define_box_properties(bp_train , '#1f77b4', 'train')
+    define_box_properties(bp_test, '#ff7f0e', 'test')
+    ax.get_xaxis().tick_bottom()
+    plt.xticks(np.arange(0, len(score_labels) * 2, 2), score_labels)
+    font = {'family':'serif','color':'black','size':20}
+
+    plt.ylabel(metric_name, fontdict = font)
+    plt.xlabel('IHC score', fontdict = font)
+    plot_name =args.model +'_'+args.type +'_'+metric_name+'_plot.png'
+    plt.savefig(os.path.join(path, plot_name) ,dpi=300)
+
+
 
 
 

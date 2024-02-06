@@ -55,7 +55,7 @@ class test_network():
 
         # init quant eval path
         
-        quant_eval_path = os.path.join(self.args.train_path,'quantitative eval')
+        quant_eval_path = os.path.join(self.args.train_path,'quantitative eval 2')
 
         if not os.path.isdir(quant_eval_path):
             os.mkdir(quant_eval_path)
@@ -66,9 +66,11 @@ class test_network():
         torch.save(model.state_dict(), final_model_path)
 
         # load train data
-        if 'Diffusion' in self.args.model:
+        if 'Diffusion' in self.args.model or self.args.img_resize == True:
             num_patches=1   
         else:
+            num_patches = ((1024 * 1024) // self.args.img_size**2)
+
             with open(self.args.train_eval_path, "rb") as fp:   
                     self.train_plot_eval = pickle.load(fp)
 
@@ -82,15 +84,11 @@ class test_network():
         result_total = utils.init_eval()
         prediction_time = []
         result_total['train_time'] = train_time
-        if self.args.img_resize == True:
-            num_patches=1      
-        if self.args.img_resize != True and 'Diffusion' not in self.args.model:
-            num_patches = ((1024 * 1024) // self.args.img_size**2)
 
         if data_set =="train":
             start = 0
             stop = num_patches 
-            save_path = os.path.join(quant_eval_path,'train_result.txt')
+            
             print('---------------------------------------------- ')
             print('QUANTITATIV EVALUATION ON TRAIN')
             print('---------------------------------------------- ')
@@ -98,7 +96,7 @@ class test_network():
         if data_set =="test":  
             start = 0
             stop = num_patches
-            save_path = os.path.join(quant_eval_path,'test_result.txt')
+            
             print('---------------------------------------------- ')
             print('QUANTITATIV EVALUATION ON TEST')
             print('---------------------------------------------- ')
@@ -168,14 +166,27 @@ class test_network():
             result_total[key_group]['num_img']=len(mse_list[key_group])
 
         result_total['prediction_time'] = np.mean(prediction_time)
-        return result_total
+        mse_name = 'mse_list_'+data_set
+        ssim_name = 'ssim_list_'+data_set
+        psnr_name = 'psnr_list_'+data_set
+
+        with open(os.path.join(quant_eval_path,mse_name), "wb") as fp:   
+            pickle.dump(mse_list, fp)
+
+        with open(os.path.join(quant_eval_path,ssim_name), "wb") as fp:   
+            pickle.dump(ssim_list, fp)
+
+        with open(os.path.join(quant_eval_path,psnr_name), "wb") as fp:   
+            pickle.dump(psnr_list, fp)
+
+        return result_total, mse_list, ssim_list, psnr_list
 
 
     def get_full_qual_eval(self, classifier_name, model, model_list):
-        model.eval()
+        
             
         # init qual eval dir
-        qual_eval_path = os.path.join(self.args.train_path,"qualitative eval")
+        qual_eval_path = os.path.join(self.args.train_path,"qualitative eval 2")
         os.mkdir(qual_eval_path)
 
         #save model in test file 

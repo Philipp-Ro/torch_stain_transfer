@@ -282,8 +282,6 @@ def set_paths(args  ,model_framework, model_arch, model_specs):
 
     return args, model_name, train_plot_eval, test_plot_eval
 
-
-
 def init_eval():
         eval = {}
         eval['total'] = {}

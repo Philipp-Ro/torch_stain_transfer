@@ -5,6 +5,7 @@ import testing
 import utils
 import time
 import os
+import pickle
 # -----------------------------------------------------------------------------------------------------------------
 # Arguments
 # -----------------------------------------------------------------------------------------------------------------
@@ -101,19 +102,50 @@ trained_model = utils.load_model_weights(args, model, model_name)
 model_testing = testing.test_network(args, trained_model)
 
 # quantitativ evaluation
-if not args.qual_eval_only:
-    if "diff" not in model_name:
-        result_test = model_testing.get_full_quant_eval('test', trained_model, train_time=train_time)
-        result_train = model_testing.get_full_quant_eval('train', trained_model, train_time=train_time)
+if args.quant_eval_only and not args.qual_eval_only:
+    quant_eval_path = os.path.join(args.train_path,'quantitative eval 2')
+    if not os.path.isdir(quant_eval_path):
+        result_test, test_list_mse, test_list_ssim, test_list_psnr= model_testing.get_full_quant_eval('test', trained_model, train_time=train_time)
+        result_train, train_list_mse, train_list_ssim, train_list_psnr = model_testing.get_full_quant_eval('train', trained_model, train_time=train_time)
     else:
-        result_test =model_testing.get_full_quant_eval('train', trained_model, train_time=train_time)
-        result_train =model_testing.get_full_quant_eval('test', trained_model, train_time=train_time)
+        mse_test_path = os.path.join(quant_eval_path,'mse_list_test')
+        mse_train_path = os.path.join(quant_eval_path,'mse_list_train')
+        with open(mse_test_path, "rb") as fp:   
+            test_list_mse = pickle.load(fp)
+
+        with open(mse_train_path, "rb") as fp:   
+            train_list_mse = pickle.load(fp)
+
+        ssim_test_path = os.path.join(quant_eval_path,'ssim_list_test')
+        ssim_train_path = os.path.join(quant_eval_path,'ssim_list_train')
+        with open(ssim_test_path, "rb") as fp:   
+            test_list_ssim = pickle.load(fp)
+
+        with open(ssim_train_path, "rb") as fp:   
+            train_list_ssim = pickle.load(fp)
+
+        psnr_test_path = os.path.join(quant_eval_path,'psnr_list_test')
+        psnr_train_path = os.path.join(quant_eval_path,'psnr_list_train')
+        with open(psnr_test_path, "rb") as fp:   
+            test_list_psnr = pickle.load(fp)
+
+        with open(psnr_train_path, "rb") as fp:   
+            train_list_psnr = pickle.load(fp)
+
+
+
+    
 
     latex_table_path = os.path.join(args.train_path,'quantitative eval/summary_latex.txt')
+
+    plot_utils.get_boxplot_for_scores(args, metric_name='MSE',train_list = train_list_mse, test_list= test_list_mse, path= quant_eval_path)
+    plot_utils.get_boxplot_for_scores(args, metric_name='SSIM',train_list = train_list_ssim, test_list= test_list_ssim, path= quant_eval_path)
+    plot_utils.get_boxplot_for_scores(args, metric_name='PSNR',train_list = train_list_psnr, test_list= test_list_psnr, path= quant_eval_path)
     utils.write_summary_latex_table(result_test, result_train, latex_table_path)
 
-model_list = [model_result_path]   
-images = model_testing.get_full_qual_eval(classifier_name ="ViT_resize", model=trained_model, model_list=model_list )
+if args.qual_eval_only and not args.quant_eval_only:
+    model_list = [model_result_path]   
+    images = model_testing.get_full_qual_eval(classifier_name ="ViT_resize", model=trained_model, model_list=model_list)
 
 
 
